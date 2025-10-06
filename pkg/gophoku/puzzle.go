@@ -21,18 +21,27 @@ func NewGenerator(board *Board) *Generator {
 // Generate creates a new puzzle with the specified number of hints.
 // Returns a Puzzle containing both the initial state and its solution.
 func (g *Generator) Generate(hintCount int) *Puzzle {
-    puzzle := &Puzzle{}
+    puzzle := &Puzzle{
+        Board: g.board.Copy(),
+    }
 
-    // Generate a complete solution
-    if !g.board.Solve() {
+    // Check that the number of hints can form a valid Sudoku puzzle
+    if hintCount < 17 || hintCount > 81 || g.board.HintCount() > hintCount {
         return puzzle
     }
 
-    // Store the solution
-    puzzle.Solution = g.board.Copy()
+    for g.board.HintCount() != hintCount {
+        // Generate a complete solution
+        if !g.board.Solve() {
+            return puzzle
+        }
 
-    // Remove cells while maintaining a unique solution
-    puzzle.Hints = 9 * 9 - g.removeCells(9 * 9 - hintCount)
+        // Store the solution
+        puzzle.Solution = g.board.Copy()
+
+        // Remove cells while maintaining a unique solution
+        puzzle.Hints = 9 * 9 - g.removeCells(9 * 9 - hintCount)
+    }
 
     puzzle.Board = g.board
     return puzzle

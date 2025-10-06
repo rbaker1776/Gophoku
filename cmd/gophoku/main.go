@@ -8,6 +8,6 @@ import (
 func main() {
     board := gophoku.NewBoard() 
     generator := gophoku.NewGenerator(board)
-    puzzle := generator.Generate(17)
+    puzzle := generator.Generate(23)
     fmt.Println(puzzle.Board.String())
 }
