@@ -1,7 +1,6 @@
 package gophoku
 
 import (
-    "fmt"
     "gophoku/internal/rng"
 )
 
@@ -21,33 +20,36 @@ func NewGenerator(board *Board) *Generator {
 
 // Generate creates a new puzzle with the specified number of hints.
 // Returns a Puzzle containing both the initial state and its solution.
-func (g *Generator) Generate(hintCount int) (*Puzzle, error) {
+func (g *Generator) Generate(hintCount int) *Puzzle {
+    puzzle := &Puzzle{}
+
     // Generate a complete solution
     if !g.board.Solve() {
-        return nil, fmt.Errorf("failed to generate complete solution")
+        return puzzle
     }
 
     // Store the solution
-    solution := g.board.Copy()
+    puzzle.Solution = g.board.Copy()
 
     // Remove cells while maintaining a unique solution
-    removedCount := g.removeCells(9 * 9 - hintCount)
+    puzzle.Hints = 9 * 9 - g.removeCells(9 * 9 - hintCount)
 
-    puzzle := &Puzzle{
-        Board:    g.board,
-        Solution: solution,
-        Hints:    9 * 9 - removedCount,
-    }
-    return puzzle, nil
+    puzzle.Board = g.board
+    return puzzle
 }
 
+// removeCells attempts to remove removeCount cells from the board while maintaining a unique solution.
+// Returns the number of cells actually removed.
+// The final board state is guaranteed to have one unique solution.
 func (g *Generator) removeCells(removeCount int) int {
+    // Try removing tiles in a random order
     removeQueue := rng.ShuffledTiles()
 
     removed := 0
     for i := 0; i < len(removeQueue) && removed < removeCount; i++ {
         row, col := removeQueue[i][0], removeQueue[i][1]
         if g.board[row][col] == 0 {
+            // The tile was already removed
             continue
         }
 
@@ -58,6 +60,7 @@ func (g *Generator) removeCells(removeCount int) int {
         if testBoard.HasUniqueSolution() {
             removed++
         } else {
+            // This tile is integral to having a unique solution
             g.board[row][col] = num
         }
     }
