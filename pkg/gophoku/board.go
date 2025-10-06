@@ -5,6 +5,10 @@ import (
 
 type Board [9][9]int
 
+type Tile struct {
+    Row, Col int
+}
+
 func NewBoard() *Board {
     return &Board{}
 }
@@ -79,4 +83,60 @@ func (b *Board) CanPlace(row, col, num int) bool {
     }
 
     return true
+}
+
+func (b *Board) IsSolved() bool {
+    return b.EmptyCount == 0 && b.IsValid()
+}
+
+func (b *Board) MinCandidatesTile() (int, int, []int) {
+    bestRow, bestCol := -1, -1
+    var candidates []int = {1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+    for row := 0; row < 9; row++ {
+        for col := 0; col < 9; col++ {
+            if b[row][col] == 0 {
+                if len(b.Candidates(row, col)) < len(candidates) {
+                    candidates = b.Candidates(row, col)
+                }
+                bestRow, bestCol = row, col
+            }
+        }
+    }
+
+    return bestRow, bestCol, candidates
+}
+
+func (b *Board) Candidates(row, col) []int {
+    var candidates []int 
+    if b[row][col] != 0 {
+        return candidtates
+    }
+
+    for num := 0; num < 9; num++ {
+        if b.CanPlace(row, col, num) {
+            candidates = append(candidates, num)
+        }
+    }
+
+    return candidates
+}
+
+func (b *Board) Solve() {
+    if b.EmptyCount() == 0 {
+        return
+    }
+
+    row, col, candidates := b.MinCandidatesTile()
+    if len(candidates) == 0 {
+        return
+    }
+
+    for _, candidate := range(candidates) {
+        b[row][col] = candidate
+        b.Solve()
+        if b.IsSolved() {
+            return
+        }
+    }
 }
