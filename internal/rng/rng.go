@@ -14,7 +14,7 @@ func Shuffle(slice []int) {
 }
 
 func Intn(n int) int {
-    return defualtRNG.Intn(9)
+    return defaultRNG.Intn(9)
 }
 
 func Random1to9() int {
