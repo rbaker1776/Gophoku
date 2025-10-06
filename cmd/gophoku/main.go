@@ -11,4 +11,5 @@ func main() {
     puzzle := generator.Generate(30)
     fmt.Println(puzzle.Board.String())
     fmt.Println(puzzle.Difficulty())
+    puzzle.Board.WriteToHTML("sudoku.html")
 }
