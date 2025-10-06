@@ -31,6 +31,8 @@ func (g *Generator) Generate(hintCount int) *Puzzle {
     }
 
     for g.board.HintCount() != hintCount {
+        g.board = puzzle.Board.Copy()
+
         // Generate a complete solution
         if !g.board.Solve() {
             return puzzle

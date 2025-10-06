@@ -8,6 +8,7 @@ import (
 func main() {
     board := gophoku.NewBoard() 
     generator := gophoku.NewGenerator(board)
-    puzzle := generator.Generate(23)
+    puzzle := generator.Generate(30)
     fmt.Println(puzzle.Board.String())
+    fmt.Println(puzzle.Difficulty())
 }
