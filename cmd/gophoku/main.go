@@ -7,6 +7,11 @@ import (
 
 func main() {
     board := gophoku.NewBoard() 
-    board.Solve()
-    fmt.Println(board.String())
+    generator := gophoku.NewGenerator(board)
+    puzzle, err := generator.Generate(17)
+    if err != nil {
+        fmt.Println(puzzle.Board.String())
+    } else {
+        fmt.Println(puzzle.Board.String())
+    }
 }

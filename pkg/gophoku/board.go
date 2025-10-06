@@ -2,14 +2,9 @@ package gophoku
 
 import (
     "fmt"
-    "gophoku/internal/rng"
 )
 
 type Board [9][9]int
-
-type Tile struct {
-    Row, Col int
-}
 
 func NewBoard() *Board {
     return &Board{}
@@ -41,6 +36,10 @@ func (b *Board) EmptyCount() int {
 
 func (b *Board) HintCount() int {
     return 9 * 9 - b.EmptyCount()
+}
+
+func (b *Board) IsSolved() bool {
+    return b.EmptyCount() == 0 && b.IsValid()
 }
 
 func (b *Board) IsValid() bool {
@@ -87,115 +86,6 @@ func (b *Board) CanPlace(row, col, num int) bool {
     }
 
     return true
-}
-
-func (b *Board) IsSolved() bool {
-    return b.EmptyCount() == 0 && b.IsValid()
-}
-
-func (b *Board) MinCandidatesTile() (int, int, []int) {
-    bestRow, bestCol := -1, -1
-    var bestCandidates []int
-
-    for row := 0; row < 9; row++ {
-        for col := 0; col < 9; col++ {
-            if b[row][col] == 0 {
-                candidates := b.Candidates(row, col)
-                if bestRow == -1 || len(candidates) < len(bestCandidates) {
-                    bestRow, bestCol = row, col
-                    bestCandidates = candidates
-                }
-            }
-        }
-    }
-
-    return bestRow, bestCol, bestCandidates
-}
-
-func (b *Board) Candidates(row, col int) []int {
-    var candidates []int 
-    if b[row][col] != 0 {
-        return candidates
-    }
-
-    for num := 1; num <= 9; num++ {
-        if b.CanPlace(row, col, num) {
-            candidates = append(candidates, num)
-        }
-    }
-
-    return candidates
-}
-
-func (b *Board) Solve() bool {
-    if b.EmptyCount() == 0 {
-        return b.IsSolved()
-    } else if b.HintCount() == 0 {
-        b.fillDiagonalBoxes()
-    }
-
-    row, col, candidates := b.MinCandidatesTile()
-    if len(candidates) == 0 {
-        return false
-    }
-    rng.Shuffle(candidates)
-
-    for _, candidate := range(candidates) {
-        b[row][col] = candidate
-        if b.Solve() {
-            return true
-        }
-        b[row][col] = 0
-    }
-
-    return false
-}
-
-func (b *Board) fillDiagonalBoxes() {
-    for box := 0; box < 3; box++ {
-        startRow, startCol := box * 3, box * 3
-        i, nums := 0, rng.Shuffled1to9()
-        for row := startRow; row < startRow + 3; row++ {
-            for col := startCol; col < startCol + 3; col++ {
-                b[row][col] = nums[i]
-                i++
-            }
-        }
-    }
-}
-
-func (b *Board) HasUniqueSolution() bool {
-    solutionCount := 0
-    b.countSolutions(&solutionCount, 2)
-    return solutionCount == 1
-}
-
-func (b *Board) countSolutions(count *int, maxCount int) {
-    if *count >= maxCount {
-        return
-    }
-
-    if b.EmptyCount() == 0 {
-        if b.IsValid() {
-            *count++
-        }
-    }
-
-    row, col, candidates := b.MinCandidatesTile()
-    if len(candidates) == 0 {
-        return
-    }
-    rng.Shuffle(candidates)
-    
-    for _, candidate := range candidates {
-        b[row][col] = candidate
-        b.countSolutions(count, maxCount)
-        b[row][col] = 0
-        
-        if *count >= maxCount {
-            return
-        }
-    }
 }
 
 func (b *Board) String() string {

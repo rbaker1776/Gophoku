@@ -26,3 +26,22 @@ func Shuffled1to9() []int {
     Shuffle(nums)
     return nums
 }
+
+func RandomTile() (int, int) {
+    return Intn(9), Intn(9)
+}
+
+func ShuffledTiles() [][2]int {
+    var tiles[][2]int
+
+    for row := 0; row < 9; row++ {
+        for col := 0; col < 9; col++ {
+            tiles = append(tiles, [2]int{row, col})
+        }
+    }
+
+    rand.Shuffle(len(tiles), func(i, j int) {
+        tiles[i], tiles[j] = tiles[j], tiles[i]
+    })
+    return tiles
+}
