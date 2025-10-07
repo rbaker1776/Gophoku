@@ -56,20 +56,25 @@ func (b *Board) removeCells(removeCount int) bool {
     }
 
     hintTiles := b.HintTiles()
+    if len(hintTiles) - MinValidHints < removeCount {
+        return false
+    }
     // Try removing tiles in a random ordefr
     rng.ShuffleTiles(hintTiles)
 
-    for _, tile := range(hintTiles) {
-        row, col := tile[0], tile[1]
+    removed := 0
+
+    for i := 0; i < len(hintTiles) && removed < removeCount; i++ {
+        row, col := hintTiles[i][0], hintTiles[i][1]
         num := b[row][col]
         b[row][col] = EmptyCell
 
-        if b.HasUniqueSolution() && b.removeCells(removeCount - 1) {
-            return true
+        if b.HasUniqueSolution() {
+            removed++
         } else {
             b[row][col] = num
         }
     }
 
-    return false
+    return removed == removeCount
 }
