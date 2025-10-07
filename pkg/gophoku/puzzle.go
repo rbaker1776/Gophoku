@@ -21,6 +21,7 @@ func NewGenerator(board *Board) *Generator {
 // Generate creates a new puzzle with the specified number of hints.
 // Returns a Puzzle containing both the initial state and its solution.
 func (g *Generator) Generate(hintCount int) *Puzzle {
+    const maxAttempts int = 9
     puzzle := &Puzzle{
         Board: g.board.Copy(),
     }
@@ -30,7 +31,7 @@ func (g *Generator) Generate(hintCount int) *Puzzle {
         return puzzle
     }
 
-    for g.board.HintCount() != hintCount {
+    for i := 0; g.board.HintCount() != hintCount && i < maxAttempts; i++ {
         g.board = puzzle.Board.Copy()
 
         // Generate a complete solution
