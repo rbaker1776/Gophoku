@@ -18,4 +18,5 @@ const (
 
 	// Generation parameters
 	MaxGenerationAttempts = 99
+    DefaultHintCount      = 36
 )
