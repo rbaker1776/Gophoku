@@ -93,12 +93,12 @@ func (b *Board) Candidates(row, col int) []int {
 // This is useful for puzzle generation to ensure a valid, solvable puzzle.
 func (b *Board) HasUniqueSolution() bool {
 	solutionCount := 0
-	b.countSolutions(&solutionCount, 2)
+	b.Copy().countSolutions(&solutionCount, 2)
 	return solutionCount == 1
 }
 
 // countSolutions counts the number of solutions up to maxCount.
-// This is used internally by HasUniqueSolution to efficiently check uniqueness without finding all possible solutions.
+// This is used internally by HasUniqueSolution to check uniqueness without finding all possible solutions.
 func (b *Board) countSolutions(count *int, maxCount int) {
 	// Early exit if we've already found enough solutions
 	if *count >= maxCount {

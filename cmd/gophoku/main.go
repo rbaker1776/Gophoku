@@ -6,17 +6,7 @@ import (
 )
 
 func main() {
-    board := &gophoku.Board{
-        {8, 0, 0, 0, 0, 0, 0, 0, 0},
-        {0, 0, 3, 6, 0, 0, 0, 0, 0},
-        {0, 7, 0, 0, 9, 0, 2, 0, 0},
-        {0, 5, 0, 0, 0, 7, 0, 0, 0},
-        {0, 0, 0, 0, 4, 5, 7, 0, 0},
-        {0, 0, 0, 1, 0, 0, 0, 3, 0},
-        {0, 0, 1, 0, 0, 0, 0, 6, 8},
-        {0, 0, 8, 5, 0, 0, 0, 1, 0},
-        {0, 9, 0, 0, 0, 0, 4, 0, 0},
-    }
-    fmt.Println(board.String())
-    fmt.Println(gophoku.NewPuzzle(board).Difficulty())
+    puzzle := gophoku.NewPuzzleWithHints(25)
+    fmt.Println(puzzle.Board.String())
+    fmt.Println(puzzle.Difficulty())
 }
