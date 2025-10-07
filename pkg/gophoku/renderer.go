@@ -24,7 +24,7 @@ import (
 func (b *Board) String() string {
 	s, l := "", "+-------+-------+-------+\n"
 	for row := 0; row < BoardSize; row++ {
-		if row%BoxSize == 0 {
+		if row % BoxSize == 0 {
 			s += l
 		}
 		s += "| "
@@ -41,6 +41,22 @@ func (b *Board) String() string {
 		s += "\n"
 	}
 	return s + l
+}
+
+// Compressed string returns a compressed string representaiton of the board.
+// The returned string can be passed into NewBoardFromString() to reproduce the board.
+func (b *Board) CompressedString() string {
+    s := ""
+    for row := 0; row < BoardSize; row++ {
+        for col := 0; col < BoardSize; col++ {
+            if b[row][col] == EmptyCell {
+                s += "."
+            } else {
+                s += string(b[row][col] + '0')
+            }
+        }
+    }
+    return s
 }
 
 // WriteToHTML writes the sudoku board to an HTML file
