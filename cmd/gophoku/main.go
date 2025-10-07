@@ -3,21 +3,20 @@ package main
 import (
     "fmt"
     "gophoku/pkg/gophoku"
-    "gophoku/internal/rng"
 )
 
 func main() {
-    hardest := 0
-    for true {
-        board := gophoku.NewBoard() 
-        generator := gophoku.NewGenerator(board)
-        puzzle := generator.Generate(rng.Intn(10) + 17)
-        difficulty := puzzle.Difficulty()
-        if difficulty > hardest {
-            hardest = difficulty
-            fmt.Println("\n\n==============================================\n\n")
-            fmt.Println(puzzle.Board.String())
-            fmt.Println(puzzle.Difficulty())
-        }
+    board := &gophoku.Board{
+        {8, 0, 0, 0, 0, 0, 0, 0, 0},
+        {0, 0, 3, 6, 0, 0, 0, 0, 0},
+        {0, 7, 0, 0, 9, 0, 2, 0, 0},
+        {0, 5, 0, 0, 0, 7, 0, 0, 0},
+        {0, 0, 0, 0, 4, 5, 7, 0, 0},
+        {0, 0, 0, 1, 0, 0, 0, 3, 0},
+        {0, 0, 1, 0, 0, 0, 0, 6, 8},
+        {0, 0, 8, 5, 0, 0, 0, 1, 0},
+        {0, 9, 0, 0, 0, 0, 4, 0, 0},
     }
+    fmt.Println(board.String())
+    fmt.Println(gophoku.NewPuzzle(board).Difficulty())
 }

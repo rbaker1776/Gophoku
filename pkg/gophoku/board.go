@@ -56,7 +56,6 @@ func (b *Board) IsSolved() bool {
 
 // IsValid checks if the current board state satisfies all Sudoku constraints.
 // Empty cells are ignored in validation.
-// NOTE: This method temporarily modifies and restores cells during validation.
 func (b *Board) IsValid() bool {
     for row := 0; row < 9; row++ {
         for col := 0; col < 9; col++ {
@@ -65,13 +64,9 @@ func (b *Board) IsValid() bool {
             }
             if b[row][col] != 0 {
                 num := b[row][col]
-                // Temporarily modify the board and see if placement is valid
-                b[row][col] = 0
                 if !b.CanPlace(row, col, num) {
                     return false
                 }
-                // Restore the board
-                b[row][col] = num
             }
         }
     }
@@ -86,21 +81,16 @@ func (b *Board) CanPlace(row, col, num int) bool {
         return false
     }
 
-    // Check if the square is already occupied
-    if b[row][col] != 0 {
-        return false
-    }
-
     // Check row for duplicate
     for c := 0; c < 9; c++ {
-        if b[row][c] == num {
+        if c != col && b[row][c] == num {
             return false
         }
     }
 
     // Check column for duplicate
     for r := 0; r < 9; r++ {
-        if b[r][col] == num {
+        if r != row && b[r][col] == num {
             return false
         }
     }
@@ -110,7 +100,7 @@ func (b *Board) CanPlace(row, col, num int) bool {
     startCol := int(col / 3) * 3
     for r := startRow; r < startRow + 3; r++ {
         for c := startCol; c < startCol + 3; c++ {
-            if b[r][c] == num {
+            if (r != row || c != col) && b[r][c] == num {
                 return false
             }
         }

@@ -14,6 +14,16 @@ type Generator struct {
     board *Board
 }
 
+func NewPuzzle(board *Board) *Puzzle {
+    solution := board.Copy()
+    solution.Solve()
+    return &Puzzle{
+        Board:    board,
+        Solution: solution,
+        Hints:    board.HintCount(),
+    }
+}
+
 func NewGenerator(board *Board) *Generator {
     return &Generator{board: board}
 }
