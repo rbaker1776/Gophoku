@@ -8,6 +8,8 @@ import (
     "time"
 )
 
+var elapsed string
+
 func main() {
 	generateCmd := flag.NewFlagSet("generate", flag.ExitOnError)
 	hintCount   := generateCmd.Int("hintCount", gophoku.DefaultHintCount, "Number of hints in the puzzle")
@@ -28,8 +30,7 @@ func main() {
         gophoku.RuntimeStatsEnabled = *showStats
         start := time.Now()
 		handleGenerate(*hintCount, *numPuzzles, *prettyPrint)
-        elapsed := time.Since(start)
-        fmt.Printf("\nTook %s\n", elapsed)
+        elapsed = time.Since(start).String()
 	case "help", "-h", "--help":
 		printUsage()
 	default:
@@ -92,4 +93,5 @@ func printStats() {
     fmt.Println("\nGophoku runtime stats")
     fmt.Printf("\nTotal board instances created: %d\n", gophoku.TotalBoardCount)
     fmt.Printf("Maximum board instances concurrent: %d\n", gophoku.MaxBoardCopies)
+    fmt.Printf("\nTook %s\n", elapsed)
 }
