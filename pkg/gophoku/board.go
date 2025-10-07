@@ -1,14 +1,39 @@
 package gophoku
 
+import (
+    "runtime"
+)
+
 // Board represents a BoardSize*BoardSize Sudoku board.
 // Each cell contains a value MinValue-MaxValue | EmptyCell.
 // Valid Sudoku numbers are 1-9.
 type Board [BoardSize][BoardSize]int
 
+// boardCounter represents the number of Board instances that exist in the running program.
+var boardCounter    int = 0
+// MaxBoardCopies stores the maximum number of Board instances that have ever existed at runtime concurrently.
+var MaxBoardCopies  int = 0
+// TotalBoardCount stores the total number of Board instances created.
+var TotalBoardCount int = 0
+
+// RuntimeStatsEnabled controls whether runtime statistics are tracked.
+var RuntimeStatsEnabled bool = false
+
 // NewBoard creates and returns a new empty Sudoku board.
 // NOTE: NewBoard assumed EmptyCell == 0 because the default value is zero.
 func NewBoard() *Board {
-	return &Board{}
+    board := &Board{}
+
+    if RuntimeStatsEnabled {
+        boardCounter++
+        TotalBoardCount++
+        MaxBoardCopies = max(MaxBoardCopies, boardCounter)
+        runtime.SetFinalizer(board, func(_ *Board) {
+            boardCounter--
+        })
+    }
+
+	return board
 }
 
 // NewBoardFromString creates and returns a new Sudoku board based on an input string.

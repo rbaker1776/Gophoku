@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"gophoku/pkg/gophoku"
 	"os"
+    "time"
 )
 
 func main() {
@@ -13,35 +14,49 @@ func main() {
 	numPuzzles  := generateCmd.Int("n", 1, "Number of puzzles to generate")
 
     prettyPrint := generateCmd.Bool("pretty", false, "Pretty print the puzzles")
+    showStats   := generateCmd.Bool("runtimestats", false, "Show runtime stats")
 
 	// Check if a subcommand was provided
 	if len(os.Args) < 2 {
 		printUsage()
-		os.Exit(1)
+        exit(1)
 	}
 
 	switch os.Args[1] {
 	case "generate":
 		generateCmd.Parse(os.Args[2:])
+        gophoku.RuntimeStatsEnabled = *showStats
+        start := time.Now()
 		handleGenerate(*hintCount, *numPuzzles, *prettyPrint)
+        elapsed := time.Since(start)
+        fmt.Printf("\nTook %s\n", elapsed)
 	case "help", "-h", "--help":
 		printUsage()
 	default:
 		fmt.Printf("Unknown command: %s\n\n", os.Args[1])
 		printUsage()
-		os.Exit(1)
+        exit(1)
 	}
+
+    exit(0) 
+}
+
+func exit(exitCode int) {
+    if gophoku.RuntimeStatsEnabled {
+        printStats()
+    }
+    os.Exit(exitCode)
 }
 
 func handleGenerate(hintCount, numPuzzles int, prettyPrint bool) {
 	// Validate hint count
 	if hintCount < gophoku.MinValidHints || hintCount > gophoku.MaxValidHints {
 		fmt.Fprintf(os.Stderr, "Error: hintCount must be between %d and %d\n", gophoku.MinValidHints, gophoku.MaxValidHints)
-		os.Exit(1)
+        exit(1)
 	}
 	if numPuzzles < 1 {
 		fmt.Fprintln(os.Stderr, "Error: number of puzzles must be at least 1")
-		os.Exit(1)
+        exit(1)
 	}
 
 	for i := 0; i < numPuzzles; i++ {
@@ -69,4 +84,12 @@ func printUsage() {
     fmt.Println("\nGeneric Options:")
     fmt.Println("  -pretty bool")
     fmt.Println("       Pretty print the puzzles")
+    fmt.Println("  -runtimestats bool")
+    fmt.Println("       Print runtime stats")
+}
+
+func printStats() {
+    fmt.Println("\nGophoku runtime stats")
+    fmt.Printf("\nTotal board instances created: %d\n", gophoku.TotalBoardCount)
+    fmt.Printf("Maximum board instances concurrent: %d\n", gophoku.MaxBoardCopies)
 }
