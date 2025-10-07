@@ -1,21 +1,59 @@
 package gophoku
 
 import (
-    "fmt"
-    "os"
+	"fmt"
+	"os"
 )
+
+// String returns a human-readable string representation of the board.
+// Example output:
+//
+//	+-------+-------+-------+
+//	| . . . | . 4 7 | 5 . . |
+//	| . . 3 | . . . | . . 4 |
+//	| 1 . . | . . . | . . . |
+//	+-------+-------+-------+
+//	| . . . | . 9 . | 3 1 . |
+//	| 5 . . | 3 6 . | . . . |
+//	| . 9 1 | . 5 . | . . 6 |
+//	+-------+-------+-------+
+//	| . . . | . 7 . | 8 . . |
+//	| 6 . . | 1 . . | . . 2 |
+//	| . . . | . . 8 | . 4 . |
+//	+-------+-------+-------+
+func (b *Board) String() string {
+	s, l := "", "+-------+-------+-------+\n"
+	for row := 0; row < BoardSize; row++ {
+		if row%BoxSize == 0 {
+			s += l
+		}
+		s += "| "
+		for col := 0; col < BoardSize; col++ {
+			if b[row][col] == EmptyCell {
+				s += ". "
+			} else {
+				s += fmt.Sprintf("%d ", b[row][col])
+			}
+			if (col+1)%BoxSize == 0 {
+				s += "| "
+			}
+		}
+		s += "\n"
+	}
+	return s + l
+}
 
 // WriteToHTML writes the sudoku board to an HTML file
 func WriteToHTML(filename string, puzzles []Puzzle) error {
-    f, err := os.Create(filename)
-    if err != nil {
-        return err
-    }
-    defer f.Close()
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-   	cssContent, err := os.ReadFile("styles/styles.css")
+	cssContent, err := os.ReadFile("styles/styles.css")
 
-    var htmlHead string
+	var htmlHead string
 	if err == nil {
 		// Embed the CSS
 		htmlHead = `<!DOCTYPE html>
@@ -46,26 +84,26 @@ func WriteToHTML(filename string, puzzles []Puzzle) error {
 
 	html := htmlHead
 
-    for i, puzzle := range puzzles {
-        if i > 0 {
+	for i, puzzle := range puzzles {
+		if i > 0 {
 			html += `    <div class="page-break"></div>` + "\n"
 		}
 		html += fmt.Sprintf(`    <h1>Sudoku Puzzle %d</h1>`, i+1) + "\n"
 		html += `    <div class="sudoku-grid">` + "\n"
 
-        for row := 0; row < 9; row++ {
-            for col := 0; col < 9; col++ {
-                num := puzzle.Board[row][col]
-                if num == 0 {
-                    html += `<div class="cell"></div>` + "\n"
-                } else {
-                    html += fmt.Sprintf(`<div class="cell">%d</div>`, num) + "\n"
-                }
-            }
-        }
-        
-        html += `    </div>` + "\n"
-    }
+		for row := 0; row < BoardSize; row++ {
+			for col := 0; col < BoardSize; col++ {
+				num := puzzle.Board[row][col]
+				if num == EmptyCell {
+					html += `<div class="cell"></div>` + "\n"
+				} else {
+					html += fmt.Sprintf(`<div class="cell">%d</div>`, num) + "\n"
+				}
+			}
+		}
+
+		html += `    </div>` + "\n"
+	}
 
 	html += "</body></html>"
 
