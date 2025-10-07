@@ -6,7 +6,7 @@ import (
 
 // Solve attmpts to solve the Sudoku board using backtracking.
 // Returns true if ~a~ valid solution is found, false otherwise.
-// If the board is empty, it will fill the board with a random solution.
+// If multiple solutions are possible, Solve will choose a random one.
 func (b *Board) Solve() bool {
 	if b.EmptyCount() == 0 {
 		return b.IsSolved()

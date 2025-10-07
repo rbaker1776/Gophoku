@@ -7,9 +7,10 @@ const (
 	CellCount = BoardSize * BoardSize
 
 	// Cell Values
-	EmptyCell = 0
-	MinValue  = 1
-	MaxValue  = 9
+	EmptyCell    = 0
+	MinValue     = 1
+	MaxValue     = 9
+    InvalidValue = -1
 
 	// Puzzle constraints
 	MinValidHints = 17 // Mathematical minimum to produce a unique Sudoku solution
