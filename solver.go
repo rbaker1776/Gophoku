@@ -2,6 +2,7 @@ package main
 
 import (
     "math/rand"
+    "math/bits"
 )
 
 // Solve attempts to solve a Sudoku board and reports whether ~a~ solution was found.
@@ -13,9 +14,19 @@ func (b *Board) Solve() bool {
     }
 
     // If starting with an empty board, fill diagonal boxes for efficiency
-	if b.emptyCount == CellCount {
-		b.fillDiagonalBoxes()
-	}
+    if b.emptyCount == CellCount {
+        b.fillDiagonalBoxes()
+    }
+
+    // Apply constraint propagation before backtracking
+    if !b.propagateConstraints() {
+        return false
+    }
+
+    // If propagation solved the puzzle, we're done
+    if b.emptyCount == 0 {
+        return b.IsValid()
+    }
 
     pos, candidates := b.minCandidatesCell()
 	if len(candidates) == 0 {
@@ -38,6 +49,102 @@ func (b *Board) Solve() bool {
 	}
 
 	return false
+}
+
+// propagateConstraints applies constraint propagation techniques.
+// Returns false if the board is unsolvable.
+func (b *Board) propagateConstraints() bool {
+    changed := true
+    for changed {
+        changed = false
+        
+        // Naked singles: cells with only one candidate
+        for pos := 0; pos < CellCount; pos++ {
+            if b.cells[pos] == EmptyCell {
+                row, col, box := posToUnits(pos)
+                candidateBits := b.rowCandidates[row] & b.colCandidates[col] & b.boxCandidates[box]
+                
+                if candidateBits == 0 {
+                    return false // No valid candidates, unsolvable
+                }
+                
+                // If only one bit is set, we have a naked single
+                if bits.OnesCount(candidateBits) == 1 {
+                    value := bits.TrailingZeros(candidateBits) + 1
+                    b.Set(pos, value)
+                    changed = true
+                }
+            }
+        }
+        
+        // Hidden singles: values that can only go in one place in a unit
+        if !changed {
+            changed = b.findHiddenSingles()
+        }
+    }
+    return true
+}
+
+// findHiddenSingles finds values that can only be placed in one position within a unit
+// Reports whether any cells were solved.
+func (b *Board) findHiddenSingles() bool {
+    changed := false
+    
+    // Check rows
+    for row := 0; row < 9; row++ {
+        for val := 1; val <= 9; val++ {
+            mask := uint(1 << (val - 1))
+            if b.rowCandidates[row]&mask == 0 {
+                continue // Value already placed
+            }
+            
+            count := 0
+            lastPos := -1
+            for col := 0; col < 9; col++ {
+                pos := row*9 + col
+                if b.cells[pos] == EmptyCell {
+                    _, _, box := posToUnits(pos)
+                    if b.colCandidates[col]&mask != 0 && b.boxCandidates[box]&mask != 0 {
+                        count++
+                        lastPos = pos
+                    }
+                }
+            }
+            if count == 1 && lastPos != -1 {
+                b.Set(lastPos, val)
+                changed = true
+            }
+        }
+    }
+    
+    // Check columns
+    for col := 0; col < 9; col++ {
+        for val := 1; val <= 9; val++ {
+            mask := uint(1 << (val - 1))
+            if b.colCandidates[col]&mask == 0 {
+                continue
+            }
+            
+            count := 0
+            lastPos := -1
+            for row := 0; row < 9; row++ {
+                pos := row*9 + col
+                if b.cells[pos] == EmptyCell {
+                    _, _, box := posToUnits(pos)
+                    if b.rowCandidates[row]&mask != 0 && b.boxCandidates[box]&mask != 0 {
+                        count++
+                        lastPos = pos
+                    }
+                }
+            }
+            if count == 1 && lastPos != -1 {
+                b.Set(lastPos, val)
+                changed = true
+            }
+        }
+    }
+    
+    return changed
 }
 
 // Solution attempts to solve a Sudoku board and returns the solution as a new board.
