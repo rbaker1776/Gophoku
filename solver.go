@@ -23,7 +23,9 @@ func (b *Board) Solve() bool {
 	}
 	// Shuffle candidates for randomness in solution generation
 	// We want randomness so that we can use Solve to generate random puzzles
-	rand.Shuffle(candidates)
+	rand.Shuffle(len(candidates), func(i, j int) {
+		candidates[i], candidates[j] = candidates[j], candidates[i]
+	})
 
 	// Try each candidate using backtracking
 	for _, candidate := range candidates {
@@ -79,8 +81,8 @@ func (b *Board) Candidates(row, col int) []int {
 	}
 
 	// Test each candidate
-	for num := MinValue; num <= MaxValue; num++ {
-		if b.CanPlace(row, col, num) {
+	for num := 1; num <= 9; num++ {
+		if b.canPlace(row, col, num) {
 			candidates = append(candidates, num)
 		}
 	}
@@ -112,7 +114,7 @@ func (b *Board) countSolutions(count *int, maxCount int) {
 		return
 	}
 
-	row, col, candidates := b.MinCandidatesTile()
+	row, col, candidates := b.minCandidatesTile()
 	if len(candidates) == 0 {
 		return
 	}
@@ -135,10 +137,10 @@ func (b *Board) countSolutions(count *int, maxCount int) {
 func (b *Board) fillDiagonalBoxes() {
 	for box := 0; box < 3; box++ {
 		startRow, startCol := box*3, box*3
-		i, nums := 0, rng.Shuffled1to9()
+		i, nums := 0, rand.Perm(9)
 		for row := startRow; row < startRow+3; row++ {
 			for col := startCol; col < startCol+3; col++ {
-				b[row][col] = nums[i]
+				b[row][col] = nums[i] + 1
 				i++
 			}
 		}
