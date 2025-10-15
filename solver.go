@@ -4,6 +4,9 @@ import (
     "math/rand"
 )
 
+// Solve attempts to solve a Sudoku board and reports whether ~a~ solution was found.
+// If multiple solutions are possible, a random one will be chosen.
+// NOTE: Solve modifies the board directly. If this is undesirable, use Solution.
 func (b *Board) Solve() bool {
     if b.emptyCount == 0 {
         return b.IsValid()
@@ -35,6 +38,21 @@ func (b *Board) Solve() bool {
 	}
 
 	return false
+}
+
+// Solution attempts to solve a Sudoku board and returns the solution as a new board.
+func (b *Board) Solution() *Board {
+    newBoard := b.Clone()
+    newBoard.Solve()
+    return newBoard
+}
+
+// HasUniqueSolution checks if the current board has exactly one solution.
+// This is useful for puzzle generation to ensure a valid, solvable puzzle.
+func (b *Board) HasUniqueSolution() bool {
+	solutionCount := 0
+	b.Clone().countSolutions(&solutionCount, 2)
+	return solutionCount == 1
 }
 
 // minCandidatesCell finds the empty cell with the fewest valid candidates.
@@ -97,6 +115,40 @@ func (b *Board) fillDiagonalBoxes() {
 				b.Set(pos, nums[idx]+1)
 				idx++
 			}
+		}
+	}
+}
+
+// countSolutions counts the number of solutions up to maxCount.
+// This is used internally by HasUniqueSolution to check uniqueness without finding all possible solutions.
+func (b *Board) countSolutions(count *int, maxCount int) {
+	// Early exit if we've already found enough solutions
+	if *count >= maxCount {
+		return
+	}
+
+	// If the board is complete, no more solutions can be found
+	if b.emptyCount == 0 {
+		if b.IsValid() {
+			*count++
+		}
+		return
+	}
+
+	pos, candidates := b.minCandidatesCell()
+	if len(candidates) == 0 {
+		return
+	}
+
+	// Try each candidate using backtracking
+	for _, candidate := range candidates {
+        b.Set(pos, candidate)
+		b.countSolutions(count, maxCount)
+		b.Clear(pos)
+
+		// Early exit if we've found enough solutions
+		if *count >= maxCount {
+			return
 		}
 	}
 }

@@ -9,7 +9,7 @@ import (
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-    board := NewBoard()
-    board.Solve()
-    fmt.Println(board.PrettyString())
+    puzzle := NewPuzzleWithHints(25)
+
+    fmt.Println(puzzle.Board.PrettyString())
 }
