@@ -5,16 +5,16 @@ import (
 )
 
 func (b *Board) Solve() bool {
-    if b.EmptyCount() == 0 {
-        return b.IsSolved()
+    if b.emptyCount == 0 {
+        return b.IsValid()
     }
 
     // If starting with an empty board, fill diagonal boxes for efficiency
-	if b.HintCount() == 0 {
+	if b.emptyCount == CellCount {
 		b.fillDiagonalBoxes()
 	}
 
-    row, col, candidates := b.minCandidatesTile()
+    pos, candidates := b.minCandidatesCell()
 	if len(candidates) == 0 {
 		return false
 	}
@@ -26,119 +26,76 @@ func (b *Board) Solve() bool {
 
 	// Try each candidate using backtracking
 	for _, candidate := range candidates {
-		b[row][col] = candidate
+	    b.Set(pos, candidate)	
 		if b.Solve() {
 			return true
 		} else {
-			b[row][col] = EmptyCell
+			b.Clear(pos)
 		}
 	}
 
 	return false
 }
 
-// minCandidatesTile finds the empty tile with the fewest valid candidates.
-// Returns the tile position and the list of valid candidates.
+// minCandidatesCell finds the empty cell with the fewest valid candidates.
+// Returns the cell position and the list of valid candidates.
 // An empty candidates list indicates an unsolvable board.
-func (b *Board) minCandidatesTile() (int, int, []int) {
-	bestRow, bestCol := -1, -1
-	var bestCandidates []int
+func (b *Board) minCandidatesCell() (int, []int) {
+    bestPos := CellCount
+    var bestCandidates []int
 
-	for row := 0; row < 9; row++ {
-		for col := 0; col < 9; col++ {
-			if b[row][col] == EmptyCell {
-				candidates := b.Candidates(row, col)
+    for pos := 0; pos < CellCount; pos++ {
+        if b.cells[pos] == EmptyCell {
+            candidates := b.candidates(pos)
 
-				// Choose the tile with minimum candidates
-				if bestRow == -1 || len(candidates) < len(bestCandidates) {
-					bestRow, bestCol = row, col
-					bestCandidates = candidates
-				}
+            // Choose the tile with the fewest candidates
+            if !isValidPosition(bestPos) || len(candidates) < len(bestCandidates) {
+                bestPos = pos
+                bestCandidates = candidates
+            }
 
-				// Early exit if we find a tile with no valid candidates
-				if len(candidates) == 0 {
-					return bestRow, bestCol, bestCandidates
-				}
-			}
-		}
-	}
+            // Early exit if we find a cell with zero candidates
+            if len(candidates) == 0 {
+                break
+            }
+        }
+    }
 
-	return bestRow, bestCol, bestCandidates
+    return bestPos, bestCandidates
 }
 
-// Candidates finds the numbers that can be placed in a tile without creating an immediate violation.
-// Returns a list of numbers 1-9 that can be placed in the provided position.
+// candidates finds the numbers that can be placed in a cell without creating an immediate violation.
+// Returns a list of numbers [1-9] that can be placed in the provided position.
 // If the position is already occupied, Candidates returns an empty list.
-func (b *Board) Candidates(row, col int) []int {
-	var candidates []int
+func (b *Board) candidates(pos int) []int {
+    row, col, box := posToUnits(pos)
+    candidateBits := b.rowCandidates[row] & b.colCandidates[col] & b.boxCandidates[box]
+    var candidates []int
 
-	// Early exit if the square is already occupied
-	if b[row][col] != EmptyCell {
-		return candidates
-	}
-
-	// Test each candidate
-	for num := 1; num <= 9; num++ {
-		if b.canPlace(row, col, num) {
-			candidates = append(candidates, num)
-		}
-	}
+    for i := 0; i < 9; i++ {
+        if candidateBits & (1 << i) != 0 {
+            candidates = append(candidates, i + 1)
+        }
+    }
 
 	return candidates
 }
 
-// HasUniqueSolution checks if the current board has exactly one solution.
-// This is useful for puzzle generation to ensure a valid, solvable puzzle.
-func (b *Board) HasUniqueSolution() bool {
-	solutionCount := 0
-	b.Copy().countSolutions(&solutionCount, 2)
-	return solutionCount == 1
-}
-
-// countSolutions counts the number of solutions up to maxCount.
-// This is used internally by HasUniqueSolution to check uniqueness without finding all possible solutions.
-func (b *Board) countSolutions(count *int, maxCount int) {
-	// Early exit if we've already found enough solutions
-	if *count >= maxCount {
-		return
-	}
-
-	// If the board is complete, no more solutions can be found
-	if b.EmptyCount() == 0 {
-		if b.IsValid() {
-			*count++
-		}
-		return
-	}
-
-	row, col, candidates := b.minCandidatesTile()
-	if len(candidates) == 0 {
-		return
-	}
-
-	// Try each candidate using backtracking
-	for _, candidate := range candidates {
-		b[row][col] = candidate
-		b.countSolutions(count, maxCount)
-		b[row][col] = EmptyCell
-
-		// Early exit if we've found enough solutions
-		if *count >= maxCount {
-			return
-		}
-	}
-}
-
-// FillDiagonalBoxes fills three 3x3 boxes on a sudoku board (27 squares total) that are independent.
-// This is used by Solve for efficiency purposes when the Sudoku board is empty.
+// fillDiagonalBoxes fills three 3x3 boxes on a sudoku board (27 squares total) that are independent.
+// This is used by Solve for efficiency when the Sudoku board is empty.
 func (b *Board) fillDiagonalBoxes() {
 	for box := 0; box < 3; box++ {
-		startRow, startCol := box*3, box*3
-		i, nums := 0, rand.Perm(9)
+		nums := rand.Perm(9)
+		idx := 0
+		
+		startRow := box * 3
+		startCol := box * 3
+		
 		for row := startRow; row < startRow+3; row++ {
 			for col := startCol; col < startCol+3; col++ {
-				b[row][col] = nums[i] + 1
-				i++
+				pos := row*9 + col
+				b.Set(pos, nums[idx]+1)
+				idx++
 			}
 		}
 	}

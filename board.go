@@ -2,6 +2,8 @@ package main
 
 import (
     "strconv"
+    "strings"
+    "fmt"
 )
 
 const (
@@ -24,12 +26,17 @@ type Board struct {
     rowCandidates [9]uint
     colCandidates [9]uint
     boxCandidates [9]uint
+
+    // Track the number of empty cells on the board.
+    emptyCount int
 }
 
 // NewBoard creates and returns a new empty Sudoku board.
 // NOTE: NewBoard assumes EmptyCell == 0
 func NewBoard() *Board {
-    b := &Board{}
+    b := &Board{
+        emptyCount: CellCount,
+    }
     for i := 0; i < 9; i++ {
         b.rowCandidates[i] = AllNine
         b.colCandidates[i] = AllNine
@@ -68,6 +75,7 @@ func (b *Board) Set(pos, val int) bool {
 
     // Set the value only once we know it's legal
     b.cells[pos] = val
+    b.emptyCount--
 
     // Update candidates of affected cells
     b.rowCandidates[row] &^= mask
@@ -95,6 +103,7 @@ func (b *Board) Clear(pos int) bool {
 
     val := b.cells[pos]
     b.cells[pos] = EmptyCell
+    b.emptyCount++
 
     // Update the candidates of affected cells
     row, col, box := posToUnits(pos)
@@ -126,4 +135,31 @@ func (b *Board) String() string {
         }
     }
     return s
+}
+
+// PrettyString returns a human-readable representation of the board.
+func (b *Board) PrettyString() string {
+	var sb strings.Builder
+	line := "+-------+-------+-------+\n"
+	
+	for row := 0; row < 9; row++ {
+		if row%3 == 0 {
+			sb.WriteString(line)
+		}
+		sb.WriteString("| ")
+		for col := 0; col < 9; col++ {
+			pos := row*9 + col
+			if b.cells[pos] == 0 {
+				sb.WriteString(". ")
+			} else {
+				fmt.Fprintf(&sb, "%d ", b.cells[pos])
+			}
+			if (col+1)%3 == 0 {
+				sb.WriteString("| ")
+			}
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString(line)
+	return sb.String()
 }

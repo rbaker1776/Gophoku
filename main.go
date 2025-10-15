@@ -10,6 +10,6 @@ func main() {
 	rand.Seed(time.Now().UnixNano())
 
     board := NewBoard()
-    board.Set(1, 2)
-    fmt.Println(board.String())
+    board.Solve()
+    fmt.Println(board.PrettyString())
 }
