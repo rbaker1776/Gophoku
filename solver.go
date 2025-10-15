@@ -4,9 +4,6 @@ import (
     "math/rand"
 )
 
-// Solve attmpts to solve the Sudoku board and reports whether it was solved.
-// If multiple solutions are possible, Solve will choose a random one.
-// NOTE: Solve modifies the Sudoku board.
 func (b *Board) Solve() bool {
     if b.EmptyCount() == 0 {
         return b.IsSolved()

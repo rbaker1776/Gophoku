@@ -1,87 +1,129 @@
 package main
 
-import "fmt"
+import (
+    "strconv"
+)
 
 const (
-    EmptyCell   = 0
-    InvalidCell = -1
+    // Special cell values
+	EmptyCell   = 0
+	InvalidCell = -1
+    CellCount   = 81
+
+    // Bitmask values
+    AllNine = 511
 )
 
 // Board represents a 9x9 Sudoku board.
-// Each cell contains a value 1-9 | EmptyCell.
-type Board [9][9]int
+type Board struct {
+    // Each cell contains a value 1-9 | EmptyCell.
+    cells [CellCount]int
 
-// New creates and returns a new empty Sudoku board.
-func NewBoard() *Board {
-    // NOTE: This assumes EmptyCell == 0
-	return &Board{}
+    // Candidate bitmasks store the candidates that have yet to be placed in an area.
+    // bit i is set = value i+1 can be placed in the area.
+    rowCandidates [9]uint
+    colCandidates [9]uint
+    boxCandidates [9]uint
 }
 
-// Copy creates a deep copy of the board.
+// NewBoard creates and returns a new empty Sudoku board.
+// NOTE: NewBoard assumes EmptyCell == 0
+func NewBoard() *Board {
+    b := &Board{}
+    for i := 0; i < 9; i++ {
+        b.rowCandidates[i] = AllNine
+        b.colCandidates[i] = AllNine
+        b.boxCandidates[i] = AllNine
+    }
+    return b
+}
+
+// Clone creates and returns a deep copy of the board.
 // The returned board is independent of the original.
-func (b *Board) Copy() *Board {
+func (b *Board) Clone() *Board {
 	newBoard := NewBoard()
-	for row := 0; row < 9; row++ {
-		for col := 0; col < 9; col++ {
-			newBoard[row][col] = b[row][col]
-		}
-	}
+    for pos:= 0; pos < CellCount; pos++ {
+		newBoard.Set(pos, b.Get(pos))
+    }
 	return newBoard
 }
 
-// EmptyCount returns the number of empty cells on the board.
-// A completely empty board will return 81, a completely full board will return 0.
-func (b *Board) EmptyCount() int {
-	count := 0
-	for row := 0; row < 9; row++ {
-		for col := 0; col < 9; col++ {
-			if b[row][col] == EmptyCell {
-				count++
-			}
-		}
-	}
-	return count
+// Set places the value at the position and reports whether the placement is valid.
+// Set checks for Sudoku legality.
+// NOTE: Set assumes that val != EmptyCell, use Clear to set a position to EmptyCell
+func (b *Board) Set(pos, val int) bool {
+    if !isValidPosition(pos) || !isValidNumber(val) {
+        return false
+    }
+    if b.cells[pos] != EmptyCell {
+        b.Clear(pos)
+    }
+
+    // Check Sudoku legality
+    row, col, box := posToUnits(pos)
+    mask := uint(1 << (val - 1))
+    if b.rowCandidates[row] & b.colCandidates[col] & b.boxCandidates[box] & mask == 0 {
+        return false
+    }
+
+    // Set the value only once we know it's legal
+    b.cells[pos] = val
+
+    // Update candidates of affected cells
+    b.rowCandidates[row] &^= mask
+    b.colCandidates[col] &^= mask
+    b.boxCandidates[box] &^= mask
+
+    return true
 }
 
-// HintCount returns the number of filled cells on the board.
-// HintCount() + EmptyCount() == 81.
-func (b *Board) HintCount() int {
-	return 81 - b.EmptyCount()
+// Get retrieves the value at the position.
+// Returns InvalidCell if the position is invalid.
+func (b *Board) Get(pos int) int {
+    if !isValidPosition(pos) {
+        return InvalidCell
+    }
+    return b.cells[pos]
 }
-// String returns a human-readable string representation of the board.
-// Example output:
-//
-//	+-------+-------+-------+
-//	| . . . | . 4 7 | 5 . . |
-//	| . . 3 | . . . | . . 4 |
-//	| 1 . . | . . . | . . . |
-//	+-------+-------+-------+
-//	| . . . | . 9 . | 3 1 . |
-//	| 5 . . | 3 6 . | . . . |
-//	| . 9 1 | . 5 . | . . 6 |
-//	+-------+-------+-------+
-//	| . . . | . 7 . | 8 . . |
-//	| 6 . . | 1 . . | . . 2 |
-//	| . . . | . . 8 | . 4 . |
-//	+-------+-------+-------+
+
+// Clear removes the value from the board at position and reports whether the clearing is valid.
+// NOTE: Clear assumes the there is a value present at the position.
+func (b *Board) Clear(pos int) bool {
+    if !isValidPosition(pos) || !isValidNumber(b.cells[pos]) {
+        return false
+    }
+
+    val := b.cells[pos]
+    b.cells[pos] = EmptyCell
+
+    // Update the candidates of affected cells
+    row, col, box := posToUnits(pos)
+    mask := uint(1 << (val - 1))
+    b.rowCandidates[row] |= mask
+    b.colCandidates[col] |= mask
+    b.boxCandidates[box] |= mask
+
+    return true
+}
+
+// posToUnits decomposes a position into a row [0-9), column [0-9), and box number [0-9).
+// posToUnits makes no attempt to validate pos.
+func posToUnits(pos int) (int, int, int) {
+    row := int(pos / 9)
+    col := pos % 9
+    box := 3 * int(row / 3) + int(col / 3)
+    return row, col, box
+}
+
+// String returns a string representation of a Board.
 func (b *Board) String() string {
-	s, l := "", "+-------+-------+-------+\n"
-	for row := 0; row < 9; row++ {
-		if row % 3 == 0 {
-			s += l
-		}
-		s += "| "
-		for col := 0; col < 9; col++ {
-			if b[row][col] == EmptyCell {
-				s += ". "
-			} else {
-				s += fmt.Sprintf("%d ", b[row][col])
-			}
-			if (col+1)%3 == 0 {
-				s += "| "
-			}
-		}
-		s += "\n"
-	}
-	return s + l
+    s := ""
+    for pos := 0; pos < CellCount; pos++ {
+        if b.cells[pos] == EmptyCell {
+            s += "."
+        } else {
+            s += strconv.Itoa(b.cells[pos])
+        }
+    }
+    return s
 }
