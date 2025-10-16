@@ -62,7 +62,7 @@ func (b *Board) propagateConstraints() bool {
         for pos := 0; pos < CellCount; pos++ {
             if b.cells[pos] == EmptyCell {
                 row, col, box := posToUnits(pos)
-                candidateBits := b.rowCandidates[row] & b.colCandidates[col] & b.boxCandidates[box]
+                candidateBits := AllNine &^ b.rowMasks[row] &^ b.colMasks[col] &^ b.boxMasks[box]
                 
                 if candidateBits == 0 {
                     return false // No valid candidates, unsolvable
@@ -94,7 +94,7 @@ func (b *Board) findHiddenSingles() bool {
     for row := 0; row < 9; row++ {
         for val := 1; val <= 9; val++ {
             mask := uint(1 << (val - 1))
-            if b.rowCandidates[row]&mask == 0 {
+            if mask & b.rowMasks[row] != 0 {
                 continue // Value already placed
             }
             
@@ -104,7 +104,7 @@ func (b *Board) findHiddenSingles() bool {
                 pos := row*9 + col
                 if b.cells[pos] == EmptyCell {
                     _, _, box := posToUnits(pos)
-                    if b.colCandidates[col]&mask != 0 && b.boxCandidates[box]&mask != 0 {
+                    if mask & b.colMasks[col] == 0 && mask & b.boxMasks[box] == 0 {
                         count++
                         lastPos = pos
                     }
@@ -121,7 +121,7 @@ func (b *Board) findHiddenSingles() bool {
     for col := 0; col < 9; col++ {
         for val := 1; val <= 9; val++ {
             mask := uint(1 << (val - 1))
-            if b.colCandidates[col]&mask == 0 {
+            if mask & b.colMasks[col] != 0 {
                 continue
             }
             
@@ -131,7 +131,7 @@ func (b *Board) findHiddenSingles() bool {
                 pos := row*9 + col
                 if b.cells[pos] == EmptyCell {
                     _, _, box := posToUnits(pos)
-                    if b.rowCandidates[row]&mask != 0 && b.boxCandidates[box]&mask != 0 {
+                    if mask & b.rowMasks[row] == 0 && mask & b.boxMasks[box] == 0 {
                         count++
                         lastPos = pos
                     }
@@ -194,7 +194,7 @@ func (b *Board) minCandidatesCell() (int, []int) {
 // If the position is already occupied, Candidates returns an empty list.
 func (b *Board) candidates(pos int) []int {
     row, col, box := posToUnits(pos)
-    candidateBits := b.rowCandidates[row] & b.colCandidates[col] & b.boxCandidates[box]
+    candidateBits := AllNine &^ b.rowMasks[row] &^ b.colMasks[col] &^ b.boxMasks[box]
     var candidates []int
 
     for i := 0; i < 9; i++ {

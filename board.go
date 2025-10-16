@@ -16,16 +16,17 @@ const (
     AllNine = 511
 )
 
-// Board represents a 9x9 Sudoku board.
+// Board represents a 9x9 Sudoku board and its constraint masks.
 type Board struct {
     // Each cell contains a value 1-9 | EmptyCell.
+    // Cells are stored in row-major order: index = row*9 + col.
     cells [CellCount]int
 
-    // Candidate bitmasks store the candidates that have yet to be placed in an area.
-    // bit i is set = value i+1 can be placed in the area.
-    rowCandidates [9]uint
-    colCandidates [9]uint
-    boxCandidates [9]uint
+    // Bitmasks for used digits in each row/col/box.
+    // Each mask uses bits 0–8 to represent digits 1–9.
+    rowMasks [9]uint
+    colMasks [9]uint
+    boxMasks [9]uint
 
     // Track the number of empty cells on the board.
     emptyCount int
@@ -36,11 +37,6 @@ type Board struct {
 func NewBoard() *Board {
     b := &Board{
         emptyCount: CellCount,
-    }
-    for i := 0; i < 9; i++ {
-        b.rowCandidates[i] = AllNine
-        b.colCandidates[i] = AllNine
-        b.boxCandidates[i] = AllNine
     }
     return b
 }
@@ -69,7 +65,7 @@ func (b *Board) Set(pos, val int) bool {
     // Check Sudoku legality
     row, col, box := posToUnits(pos)
     mask := uint(1 << (val - 1))
-    if b.rowCandidates[row] & b.colCandidates[col] & b.boxCandidates[box] & mask == 0 {
+    if mask & (b.rowMasks[row] | b.colMasks[col] | b.boxMasks[box]) != 0 {
         return false
     }
 
@@ -78,9 +74,9 @@ func (b *Board) Set(pos, val int) bool {
     b.emptyCount--
 
     // Update candidates of affected cells
-    b.rowCandidates[row] &^= mask
-    b.colCandidates[col] &^= mask
-    b.boxCandidates[box] &^= mask
+    b.rowMasks[row] |= mask
+    b.colMasks[col] |= mask
+    b.boxMasks[box] |= mask
 
     return true
 }
@@ -108,20 +104,11 @@ func (b *Board) Clear(pos int) bool {
     // Update the candidates of affected cells
     row, col, box := posToUnits(pos)
     mask := uint(1 << (val - 1))
-    b.rowCandidates[row] |= mask
-    b.colCandidates[col] |= mask
-    b.boxCandidates[box] |= mask
+    b.rowMasks[row] &^= mask
+    b.colMasks[col] &^= mask
+    b.boxMasks[box] &^= mask
 
     return true
-}
-
-// posToUnits decomposes a position into a row [0-9), column [0-9), and box number [0-9).
-// posToUnits makes no attempt to validate pos.
-func posToUnits(pos int) (int, int, int) {
-    row := int(pos / 9)
-    col := pos % 9
-    box := 3 * int(row / 3) + int(col / 3)
-    return row, col, box
 }
 
 // String returns a string representation of a Board.
@@ -162,4 +149,13 @@ func (b *Board) PrettyString() string {
 	}
 	sb.WriteString(line)
 	return sb.String()
+}
+
+// posToUnits decomposes a position into a row [0-9), column [0-9), and box number [0-9).
+// posToUnits makes no attempt to validate pos.
+func posToUnits(pos int) (int, int, int) {
+    row := int(pos / 9)
+    col := pos % 9
+    box := 3 * int(row / 3) + int(col / 3)
+    return row, col, box
 }
