@@ -353,18 +353,3 @@ func (b *Board) validateValue(val int) error {
 	}
 	return nil
 }
-
-// GetPosToRow returns the row for a given position.
-func GetPosToRow(pos int) int {
-	return posToRow[pos]
-}
-
-// GetPosToCol returns the column for a given position.
-func GetPosToCol(pos int) int {
-	return posToCol[pos]
-}
-
-// GetPosToBox returns the box for a given position.
-func GetPosToBox(pos int) int {
-	return posToBox[pos]
-}
