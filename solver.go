@@ -1,261 +1,370 @@
 package main
 
 import (
-    "math/rand"
+    "context"
+    "errors"
     "math/bits"
+    "math/rand"
+    "time"
 )
 
-// Solve attempts to solve a Sudoku board and reports whether ~a~ solution was found.
-// If multiple solutions are possible, a random one will be chosen.
-// NOTE: Solve modifies the board directly. If this is undesirable, use Solution.
-func (b *Board) Solve() bool {
-    if b.emptyCount == 0 {
-        return b.IsValid()
-    }
+var (
+    ErrNoSolution        = errors.New("puzzle has no solution")
+	ErrMultipleSolutions = errors.New("puzzle has multiple solutions")
+	ErrInvalidPuzzle     = errors.New("puzzle violates Sudoku constraints")
+	ErrTimeout           = errors.New("solver timeout exceeded")
+)
 
-    // If starting with an empty board, fill diagonal boxes for efficiency
-    if b.emptyCount == CellCount {
-        b.fillDiagonalBoxes()
-    }
+// SolverOptions configures the solver behavior.
+type SolverOptions struct {
+	MaxSolutions int	    // MaxSolutions limits solution search (0 = unlimited)
+	Timeout time.Duration   // Timeout limits solving time
+	Randomize bool	        // Randomize solution selection for puzzle generation
+	Context context.Context // Context for cancellation
+}
 
-    // Apply constraint propagation before backtracking
-    if !b.propagateConstraints() {
-        return false
-    }
-
-    // If propagation solved the puzzle, we're done
-    if b.emptyCount == 0 {
-        return b.IsValid()
-    }
-
-    pos, candidates := b.minCandidatesCell()
-	if len(candidates) == 0 {
-		return false
+// DefaultOptions returns standard solver options.
+func DefaultOptions() *SolverOptions {
+	return &SolverOptions{
+		MaxSolutions: 1,
+		Randomize:    false,
 	}
-	// Shuffle candidates for randomness in solution generation
-	// We want randomness so that we can use Solve to generate random puzzles
-	rand.Shuffle(len(candidates), func(i, j int) {
-		candidates[i], candidates[j] = candidates[j], candidates[i]
-	})
+}
 
-	// Try each candidate using backtracking
-	for _, candidate := range candidates {
-	    b.Set(pos, candidate)	
-		if b.Solve() {
-			return true
-		} else {
-			b.Clear(pos)
-		}
+// GenerateOptions returns solver options useful for puzzle generation.
+func GenerateOptions() *SolverOptions {
+    return &SolverOptions{
+        MaxSolutions: 1,
+        Randomize:    true,
+    }
+}
+
+// Solver implements algorithms for solving Sudoku puzzles.
+type Solver struct {
+	board   *Board
+	options *SolverOptions
+	rng     *rand.Rand
+}
+
+// NewSolver creates a solver for the given board.
+func NewSolver(board *Board, options *SolverOptions) *Solver {
+	if options == nil {
+		options = DefaultOptions()
 	}
 
-	return false
+	s := &Solver{
+		board:   board.Clone(),
+		options: options,
+	}
+
+	if options.Randomize {
+		s.rng = rand.New(rand.NewSource(time.Now().UnixNano()))
+	}
+
+	return s
+}
+
+// Solve attempts to solve the puzzle.
+// Returns the solved board or an error if unsolvable.
+func (s *Solver) Solve() (*Board, error) {
+    // Validate initial board state
+    if !s.board.IsValid() {
+        return nil, ErrInvalidPuzzle
+    }
+
+    // If the board is empty, fill 27 independent cells for efficiency
+    if s.board.EmptyCount() == CellCount {
+        s.fillThreeBoxes()
+    }
+
+    // Try constraint propagation first
+    if err := s.propagateConstraints(); err != nil {
+        return nil, err
+    }
+
+    // Check if we've solved it
+    if s.board.EmptyCount() == 0 {
+        return s.board, nil
+    }
+
+    // Start backtracking with MRV heuristic
+    // MRV = Minimum Remaining Values; guess on the most constrained cells first
+    ctx, cancel := s.makeContext()
+    defer cancel()
+
+    if !s.backtrack(ctx) {
+        return nil, ErrNoSolution
+    } else {
+        return s.board, nil
+    }
 }
 
 // propagateConstraints applies constraint propagation techniques.
-// Returns false if the board is unsolvable.
-func (b *Board) propagateConstraints() bool {
-    changed := true
-    for changed {
+func (s *Solver) propagateConstraints() error {
+    changed       := true
+    iterations    := 0
+    maxIterations := CellCount * CellCount
+
+    for changed && iterations < maxIterations {
         changed = false
+        iterations++
         
-        // Naked singles: cells with only one candidate
-        for pos := 0; pos < CellCount; pos++ {
-            if b.cells[pos] == EmptyCell {
-                row, col, box := posToUnits(pos)
-                candidateBits := AllNine &^ b.rowMasks[row] &^ b.colMasks[col] &^ b.boxMasks[box]
-                
-                if candidateBits == 0 {
-                    return false // No valid candidates, unsolvable
-                }
-                
-                // If only one bit is set, we have a naked single
-                if bits.OnesCount(candidateBits) == 1 {
-                    value := bits.TrailingZeros(candidateBits) + 1
-                    b.Set(pos, value)
-                    changed = true
-                }
-            }
+        if s.applyNakedSingles() {
+            changed = true
+        }
+        if s.applyHiddenSingles() {
+            changed = true
         }
         
-        // Hidden singles: values that can only go in one place in a unit
-        if !changed {
-            changed = b.findHiddenSingles()
+        if s.hasContradiction() {
+            return ErrNoSolution
         }
     }
-    return true
+
+    return nil
 }
 
-// findHiddenSingles finds values that can only be placed in one position within a unit
-// Reports whether any cells were solved.
-func (b *Board) findHiddenSingles() bool {
+// applyNakedSingles fills cells with only one candidate.
+func (s *Solver) applyNakedSingles() bool {
     changed := false
-    
-    // Check rows
-    for row := 0; row < 9; row++ {
-        for val := 1; val <= 9; val++ {
-            mask := uint(1 << (val - 1))
-            if mask & b.rowMasks[row] != 0 {
-                continue // Value already placed
+
+    for pos := 0; pos < CellCount; pos++ {
+        if s.board.Get(pos) == EmptyCell {
+            mask := s.board.GetCandidatesMask(pos)
+
+            if mask == 0 {
+                break // Will be caught by contradiction check
             }
-            
-            count := 0
-            lastPos := -1
-            for col := 0; col < 9; col++ {
-                pos := row*9 + col
-                if b.cells[pos] == EmptyCell {
-                    _, _, box := posToUnits(pos)
-                    if mask & b.colMasks[col] == 0 && mask & b.boxMasks[box] == 0 {
-                        count++
-                        lastPos = pos
-                    }
-                }
-            }
-            if count == 1 && lastPos != -1 {
-                b.Set(lastPos, val)
+
+            // Check if only one bit is set
+            if bits.OnesCount(mask) == 1 {
+                val := bits.TrailingZeros(mask) + 1
+                s.board.SetForce(pos, val)
                 changed = true
             }
         }
     }
-    
-    // Check columns
-    for col := 0; col < 9; col++ {
-        for val := 1; val <= 9; val++ {
-            mask := uint(1 << (val - 1))
-            if mask & b.colMasks[col] != 0 {
-                continue
-            }
-            
-            count := 0
-            lastPos := -1
-            for row := 0; row < 9; row++ {
-                pos := row*9 + col
-                if b.cells[pos] == EmptyCell {
-                    _, _, box := posToUnits(pos)
-                    if mask & b.rowMasks[row] == 0 && mask & b.boxMasks[box] == 0 {
-                        count++
-                        lastPos = pos
-                    }
-                }
-            }
-            if count == 1 && lastPos != -1 {
-                b.Set(lastPos, val)
-                changed = true
-            }
-        }
-    }
-    
+
     return changed
 }
 
-// Solution attempts to solve a Sudoku board and returns the solution as a new board.
-func (b *Board) Solution() *Board {
-    newBoard := b.Clone()
-    newBoard.Solve()
-    return newBoard
+// applyHiddenSingles finds values that can only go in one place within a unit.
+func (s *Solver) applyHiddenSingles() bool {
+    changed := false
+
+    for row := 0; row < 9; row++ {
+        changed = s.findHiddenSinglesInRow(row) || changed
+    }
+    for col := 0; col < 9; col++ {
+        changed = s.findHiddenSinglesInCol(col) || changed
+    }
+    for box := 0; box < 9; box++ {
+        changed = s.findHiddenSinglesInBox(box) || changed
+    }
+
+    return changed
 }
 
-// HasUniqueSolution checks if the current board has exactly one solution.
-// This is useful for puzzle generation to ensure a valid, solvable puzzle.
-func (b *Board) HasUniqueSolution() bool {
-	solutionCount := 0
-	b.Clone().countSolutions(&solutionCount, 2)
-	return solutionCount == 1
-}
+// findHiddenSinglesInRow checks for hidden singles in the provided row.
+func (s *Solver) findHiddenSinglesInRow(row int) bool {
+    changed := false
 
-// minCandidatesCell finds the empty cell with the fewest valid candidates.
-// Returns the cell position and the list of valid candidates.
-// An empty candidates list indicates an unsolvable board.
-func (b *Board) minCandidatesCell() (int, []int) {
-    bestPos := CellCount
-    var bestCandidates []int
+    // Track where each value can go
+    valuePossibilities := make([][]int, 10)
 
-    for pos := 0; pos < CellCount; pos++ {
-        if b.cells[pos] == EmptyCell {
-            candidates := b.candidates(pos)
-
-            // Choose the tile with the fewest candidates
-            if !isValidPosition(bestPos) || len(candidates) < len(bestCandidates) {
-                bestPos = pos
-                bestCandidates = candidates
-            }
-
-            // Early exit if we find a cell with zero candidates
-            if len(candidates) == 0 {
-                break
+    for col := 0; col < 9; col++ {
+        if s.board.GetCell(row, col) == EmptyCell {
+            candidates := s.board.GetCandidatesCell(row, col)
+            for _, val := range candidates {
+                valuePossibilities[val] = append(valuePossibilities[val], row*9 + col)
             }
         }
     }
 
-    return bestPos, bestCandidates
-}
-
-// candidates finds the numbers that can be placed in a cell without creating an immediate violation.
-// Returns a list of numbers [1-9] that can be placed in the provided position.
-// If the position is already occupied, Candidates returns an empty list.
-func (b *Board) candidates(pos int) []int {
-    row, col, box := posToUnits(pos)
-    candidateBits := AllNine &^ b.rowMasks[row] &^ b.colMasks[col] &^ b.boxMasks[box]
-    var candidates []int
-
-    for i := 0; i < 9; i++ {
-        if candidateBits & (1 << i) != 0 {
-            candidates = append(candidates, i + 1)
+    // Find values with only one possible position
+    for val := 1; val <= 9; val++ {
+        if len(valuePossibilities[val]) == 1 {
+            pos := valuePossibilities[val][0]
+            s.board.SetForce(pos, val)
+            changed = true
         }
     }
 
-	return candidates
+    return changed
 }
 
-// fillDiagonalBoxes fills three 3x3 boxes on a sudoku board (27 squares total) that are independent.
-// This is used by Solve for efficiency when the Sudoku board is empty.
-func (b *Board) fillDiagonalBoxes() {
-	for box := 0; box < 3; box++ {
-		nums := rand.Perm(9)
-		idx := 0
-		
-		startRow := box * 3
-		startCol := box * 3
-		
-		for row := startRow; row < startRow+3; row++ {
-			for col := startCol; col < startCol+3; col++ {
-				pos := row*9 + col
-				b.Set(pos, nums[idx]+1)
-				idx++
+// findHiddenSinglesInCol checks for hidden singles in the provided col.
+func (s *Solver) findHiddenSinglesInCol(col int) bool {
+    changed := false
+
+    // Track where each value can go
+    valuePossibilities := make([][]int, 10)
+
+    for row := 0; row < 9; row++ {
+        if s.board.GetCell(row, col) == EmptyCell {
+            candidates := s.board.GetCandidatesCell(row, col)
+            for _, val := range candidates {
+                valuePossibilities[val] = append(valuePossibilities[val], row*9+col)
+            }
+        }
+    }
+
+    // Find values with only one possible position
+    for val := 1; val <= 9; val++ {
+        if len(valuePossibilities[val]) == 1 {
+            pos := valuePossibilities[val][0]
+            s.board.SetForce(pos, val)
+            changed = true
+        }
+    }
+
+    return changed
+}
+
+// findHiddenSinglesInBox checks for hidden singles in the provided 3x3 box.
+func (s *Solver) findHiddenSinglesInBox(box int) bool {
+	changed           := false
+	valuePossibilities := make([][]int, 10)
+
+    startPos := 3 * (box % 3) + 27 * int(box / 3)
+	startRow := int(startPos / 9)
+	startCol := startPos % 9
+
+	for dr := 0; dr < 3; dr++ {
+		for dc := 0; dc < 3; dc++ {
+			if s.board.GetCell(startRow + dr, startCol + dc) == EmptyCell {
+				candidates := s.board.GetCandidatesCell(startRow + dr, startCol + dc)
+				for _, val := range candidates {
+					valuePossibilities[val] = append(valuePossibilities[val], (startRow + dr)*9+startCol+dc)
+				}
 			}
 		}
 	}
+
+	for val := 1; val <= 9; val++ {
+		if len(valuePossibilities[val]) == 1 {
+			pos := valuePossibilities[val][0]
+			s.board.SetForce(pos, val)
+			changed = true
+		}
+	}
+
+	return changed
 }
 
-// countSolutions counts the number of solutions up to maxCount.
-// This is used internally by HasUniqueSolution to check uniqueness without finding all possible solutions.
-func (b *Board) countSolutions(count *int, maxCount int) {
-	// Early exit if we've already found enough solutions
-	if *count >= maxCount {
-		return
-	}
-
-	// If the board is complete, no more solutions can be found
-	if b.emptyCount == 0 {
-		if b.IsValid() {
-			*count++
-		}
-		return
-	}
-
-	pos, candidates := b.minCandidatesCell()
-	if len(candidates) == 0 {
-		return
-	}
-
-	// Try each candidate using backtracking
-	for _, candidate := range candidates {
-        b.Set(pos, candidate)
-		b.countSolutions(count, maxCount)
-		b.Clear(pos)
-
-		// Early exit if we've found enough solutions
-		if *count >= maxCount {
-			return
+// hasContradiction checks if the board has reached an invalid state.
+func (s *Solver) hasContradiction() bool {
+	for pos := 0; pos < CellCount; pos++ {
+		if s.board.Get(pos) == EmptyCell && s.board.GetCandidatesMask(pos) == 0 {
+			return true
 		}
 	}
+	return false
+}
+
+// backtrack implements recursive backtracking with MRV heuristic.
+func (s *Solver) backtrack(ctx context.Context) bool {
+    select {
+    case <-ctx.Done():
+        return false
+    default:
+    }
+
+    // Apply constraint propagation at each level
+    if err := s.propagateConstraints(); err != nil {
+        return false
+    }
+
+    // Check if we've already solved it
+    if s.board.EmptyCount() == 0 {
+        return true
+    }
+
+    // Find the cell with the minimum remaining values
+    pos, candidates := s.findMRVCell()
+    if len(candidates) == 0 {
+        return false
+    }
+
+    // Randomize candidates if needed
+    if s.options.Randomize && s.rng != nil {
+        s.rng.Shuffle(len(candidates), func(i, j int) {
+            candidates[i], candidates[j] = candidates[j], candidates[i]
+        })
+    }
+
+    for _, val := range candidates {
+        s.board.SetForce(pos, val)
+        if s.backtrack(ctx) {
+            return true
+        }
+        s.board.Clear(pos)
+    }
+
+    return false
+}
+
+// findMRVCell finds the empty cell with fewest candidates.
+func (s *Solver) findMRVCell() (int, []int) {
+	mrvPos   := -1
+	mrvCount := 10
+	var mrvCandidates []int
+
+	for pos := 0; pos < CellCount; pos++ {
+		if s.board.Get(pos) == EmptyCell {
+			candidates := s.board.GetCandidates(pos)
+			count := len(candidates)
+
+			if count < mrvCount {
+				mrvCount = count
+				mrvPos = pos
+				mrvCandidates = candidates
+
+				if count <= 1 {
+					break
+				}
+			}
+		}
+	}
+
+	return mrvPos, mrvCandidates
+}
+
+// fillThreeBoxes fills three 3x3 boxes (27 cells total) that are all independent.
+func (s *Solver) fillThreeBoxes() {
+    boxColumns := []int{0, 3, 6}
+    if s.options.Randomize && s.rng != nil {
+        s.rng.Shuffle(len(boxColumns), func(i, j int) {
+            boxColumns[i], boxColumns[j] = boxColumns[j], boxColumns[i]
+        })
+    }
+    nums := []int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+    for i, boxRow := range []int{0, 3, 6} {
+        boxCol := boxColumns[i]
+        if s.options.Randomize && s.rng != nil {
+            s.rng.Shuffle(len(nums), func(i, j int) {
+                nums[i], nums[j] = nums[j], nums[i]
+            })
+        }
+        for j, val := range nums {
+            dr, dc := int(j / 3), j % 3
+            pos    := (boxRow + dr)*9 + boxCol+dc
+            s.board.SetForce(pos, val)
+        }
+    }
+}
+
+// makeContext creates a context with timeout if specified.
+func (s *Solver) makeContext() (context.Context, context.CancelFunc) {
+	ctx := s.options.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	if s.options.Timeout > 0 {
+		return context.WithTimeout(ctx, s.options.Timeout)
+	}
+
+	return context.WithCancel(ctx)
 }

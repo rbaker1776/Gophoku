@@ -13,6 +13,11 @@ const (
 	CellCount   = 81
 )
 
+// Bitmask values
+const (
+    AllNine = 511
+)
+
 var (
 	ErrIllegalMove = errors.New("move violates Sudoku constraints")
 )
@@ -30,7 +35,7 @@ func init() {
 	for pos := 0; pos < CellCount; pos++ {
 		posToRow[pos] = int(pos / 9)
 		posToCol[pos] = int(pos % 9)
-		posToBox[pos] = int(pos/27) + int((pos%9))/3
+		posToBox[pos] = 3*int(pos/27) + int((pos%9)/3)
 	}
 }
 
@@ -170,6 +175,47 @@ func (b *Board) GetCell(row, col int) int {
 	return b.cells[row*9+col]
 }
 
+// GetCandidatesMask returns the bitmask of candidates for a given position.
+// A returned 0 indicates an unsolvable board or an invalid position.
+func (b *Board) GetCandidatesMask(pos int) uint {
+    if !isValidPosition(pos) {
+        return 0
+    }
+	row, col, box := posToRow[pos], posToCol[pos], posToBox[pos]
+    return AllNine &^ b.rowMasks[row] &^ b.colMasks[col] &^ b.boxMasks[box]
+}
+
+// GetCandidates returns a slice of candidates for a given position.
+// An empty slice indicates an unsolvable board or an invalid position.
+func (b *Board) GetCandidates(pos int) []int {
+    mask := b.GetCandidatesMask(pos)
+    candidates := make([]int, 0, 9)
+    for num := 1; num <= 9; num++ {
+        if mask & uint(1 << (num - 1)) != 0 {
+            candidates = append(candidates, num)
+        }
+    }
+    return candidates
+}
+
+// GetCandidatesMaskCell returns the bitmask of candidates at the given row and column.
+// A returned 0 indicates an unsolvable board or an invalid position.
+func (b *Board) GetCandidatesMaskCell(row, col int) uint {
+	if row < 0 || row >= 9 || col < 0 || col >= 9 {
+		return 0
+	}
+    return b.GetCandidatesMask(row*9+col)
+}
+
+// GetCandidatesCell returns a slice of candidates for the given row and column.
+// An empty slice indicates an unsolvable board or an invalid position.
+func (b *Board) GetCandidatesCell(row, col int) []int {
+	if row < 0 || row >= 9 || col < 0 || col >= 9 {
+		return []int{}
+	}
+    return b.GetCandidates(row*9+col)
+}
+
 // Clear removes the value at the given position.
 // Returns an error if the position is invalid.
 // No harm is done calling Clear on an already empty cell.
@@ -197,6 +243,11 @@ func (b *Board) Clear(pos int) error {
 	b.boxMasks[box] &^= mask
 
 	return nil
+}
+
+// EmptyCount returns the number of empty cells on the board.
+func (b *Board) EmptyCount() int {
+    return b.emptyCount
 }
 
 // String returns the board as an 81-character string.
