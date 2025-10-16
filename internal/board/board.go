@@ -1,4 +1,4 @@
-package main
+package board
 
 import (
 	"errors"
@@ -15,11 +15,13 @@ const (
 
 // Bitmask values
 const (
-    AllNine = 511
+	AllNine = 511
 )
 
 var (
-	ErrIllegalMove = errors.New("move violates Sudoku constraints")
+	ErrIllegalMove     = errors.New("move violates Sudoku constraints")
+	ErrInvalidPosition = errors.New("position out of bounds")
+	ErrInvalidValue    = errors.New("value must be between 1-9")
 )
 
 // Precomputed lookup tables for position mapping
@@ -178,24 +180,24 @@ func (b *Board) GetCell(row, col int) int {
 // GetCandidatesMask returns the bitmask of candidates for a given position.
 // A returned 0 indicates an unsolvable board or an invalid position.
 func (b *Board) GetCandidatesMask(pos int) uint {
-    if !isValidPosition(pos) {
-        return 0
-    }
+	if !isValidPosition(pos) {
+		return 0
+	}
 	row, col, box := posToRow[pos], posToCol[pos], posToBox[pos]
-    return AllNine &^ b.rowMasks[row] &^ b.colMasks[col] &^ b.boxMasks[box]
+	return AllNine &^ b.rowMasks[row] &^ b.colMasks[col] &^ b.boxMasks[box]
 }
 
 // GetCandidates returns a slice of candidates for a given position.
 // An empty slice indicates an unsolvable board or an invalid position.
 func (b *Board) GetCandidates(pos int) []int {
-    mask := b.GetCandidatesMask(pos)
-    candidates := make([]int, 0, 9)
-    for num := 1; num <= 9; num++ {
-        if mask & uint(1 << (num - 1)) != 0 {
-            candidates = append(candidates, num)
-        }
-    }
-    return candidates
+	mask := b.GetCandidatesMask(pos)
+	candidates := make([]int, 0, 9)
+	for num := 1; num <= 9; num++ {
+		if mask&uint(1<<(num-1)) != 0 {
+			candidates = append(candidates, num)
+		}
+	}
+	return candidates
 }
 
 // GetCandidatesMaskCell returns the bitmask of candidates at the given row and column.
@@ -204,7 +206,7 @@ func (b *Board) GetCandidatesMaskCell(row, col int) uint {
 	if row < 0 || row >= 9 || col < 0 || col >= 9 {
 		return 0
 	}
-    return b.GetCandidatesMask(row*9+col)
+	return b.GetCandidatesMask(row*9 + col)
 }
 
 // GetCandidatesCell returns a slice of candidates for the given row and column.
@@ -213,7 +215,7 @@ func (b *Board) GetCandidatesCell(row, col int) []int {
 	if row < 0 || row >= 9 || col < 0 || col >= 9 {
 		return []int{}
 	}
-    return b.GetCandidates(row*9+col)
+	return b.GetCandidates(row*9 + col)
 }
 
 // Clear removes the value at the given position.
@@ -247,7 +249,7 @@ func (b *Board) Clear(pos int) error {
 
 // EmptyCount returns the number of empty cells on the board.
 func (b *Board) EmptyCount() int {
-    return b.emptyCount
+	return b.emptyCount
 }
 
 // String returns the board as an 81-character string.
@@ -295,4 +297,74 @@ func (b *Board) Format() string {
 	}
 
 	return sb.String()
+}
+
+// IsValid reports whether a board satisfies Sudoku constraints.
+// Empty cells are ignored for validation.
+func (b *Board) IsValid() bool {
+	var rowCheck, colCheck, boxCheck [9]uint
+
+	for pos := 0; pos < CellCount; pos++ {
+		val := b.Get(pos)
+		if val == EmptyCell {
+			continue
+		}
+
+		row, col, box := posToRow[pos], posToCol[pos], posToBox[pos]
+		mask := uint(1 << (val - 1))
+
+		// Check for duplicates
+		if rowCheck[row]&mask != 0 ||
+			colCheck[col]&mask != 0 ||
+			boxCheck[box]&mask != 0 {
+			return false
+		}
+
+		rowCheck[row] |= mask
+		colCheck[col] |= mask
+		boxCheck[box] |= mask
+	}
+
+	return true
+}
+
+// isValidPosition reports whether a given position is in bounds of a Sudoku board.
+func isValidPosition(pos int) bool {
+	return pos >= 0 && pos < CellCount
+}
+
+// validatePosition checks if a position is within board bounds.
+func (b *Board) validatePosition(pos int) error {
+	if !isValidPosition(pos) {
+		return fmt.Errorf("%w: position %d must be in range [0, %d)", ErrInvalidPosition, pos, CellCount)
+	}
+	return nil
+}
+
+// isValidValue reports whether a given number is valid on a Sudoku board.
+func isValidValue(num int) bool {
+	return (num >= 1 && num <= 9) || num == EmptyCell
+}
+
+// validateValue checks if a value is valid for Sudoku (1-9).
+func (b *Board) validateValue(val int) error {
+	if !isValidValue(val) {
+		return fmt.Errorf("%w: got %d", ErrInvalidValue, val)
+	}
+	return nil
+}
+
+// GetPosToRow returns the row for a given position.
+func GetPosToRow(pos int) int {
+	return posToRow[pos]
+}
+
+// GetPosToCol returns the column for a given position.
+func GetPosToCol(pos int) int {
+	return posToCol[pos]
+}
+
+// GetPosToBox returns the box for a given position.
+func GetPosToBox(pos int) int {
+	return posToBox[pos]
 }
