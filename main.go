@@ -5,11 +5,10 @@ import (
 )
 
 func main() {
-	board := NewBoard()
-    solver := NewSolver(board, GenerateOptions())
-    solved, err := solver.Solve()
+    board, solution, err := GenerateWithClueCount(21)
     if err == nil {
-	    fmt.Println(solved.Format())
+	    fmt.Println(board.Format())
+	    fmt.Println(solution.Format())
     } else {
         fmt.Println(err)
     }
