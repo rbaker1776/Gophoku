@@ -1,7 +1,6 @@
 package board
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -15,67 +14,41 @@ const (
 
 // Bitmask values
 const (
-	AllNine = 511
+	allNine = 511
 )
 
-var (
-	ErrIllegalMove     = errors.New("move violates Sudoku constraints")
-	ErrInvalidPosition = errors.New("position out of bounds")
-	ErrInvalidValue    = errors.New("value must be between 1-9")
-)
-
-// Precomputed lookup tables for position mapping
-var (
-	posToRow [CellCount]int
-	posToCol [CellCount]int
-	posToBox [CellCount]int
-)
-
-// init initializes lookup tables for position-to-unit mappings.
-// Should be called once at program start.
-func init() {
-	for pos := 0; pos < CellCount; pos++ {
-		posToRow[pos] = int(pos / 9)
-		posToCol[pos] = int(pos % 9)
-		posToBox[pos] = 3*int(pos/27) + int((pos%9)/3)
-	}
-}
-
-// Board represents a 9x9 Sudoku board and its constraint masks.
+// Board represents a 9x9 Sudoku board.
 type Board struct {
-	// cells stores values 1-9 or EmptyCell (0) in row-major order.
-	// Index calculation: position = row*9 + col
 	cells [CellCount]int
 
 	// Bitmasks track placed digits in each unit (row/col/box).
 	// Bit i represents digit i+1 (bit 0 = digit 1, bit 8 = digit 9).
-	// A set bit means the digit is already placed in that unit.
+	// This allows for O(1) validation.
 	rowMasks [9]uint
 	colMasks [9]uint
 	boxMasks [9]uint
 
 	// emptyCount tracks unfilled cells for quick completion checks.
+	// Once initialized, emptyCount should only be touched inside Set and Clear.
 	emptyCount int
 }
 
-// NewBoard creates and returns a new empty Sudoku board.
-// NOTE: NewBoard assumes EmptyCell == 0
-func NewBoard() *Board {
+// New creates an empty Board.
+func New() *Board {
 	b := &Board{
 		emptyCount: CellCount,
 	}
 	return b
 }
 
-// NewBoardFromString creates a board from an 81-character string.
+// NewFromString creates a Board from an 81-character string.
 // Use '.' or '0' for empty cells, '1'-'9' for filled cells.
-// NOTE: NewBoardFromString assumes EmptyCell == 0
-func NewBoardFromString(s string) (*Board, error) {
+func NewFromString(s string) (*Board, error) {
 	if len(s) != CellCount {
 		return nil, fmt.Errorf("string must be exactly %d characters, got %d", CellCount, len(s))
 	}
 
-	b := NewBoard()
+	b := New()
 	for pos := 0; pos < CellCount; pos++ {
 		ch := s[pos]
 		switch ch {
@@ -93,8 +66,7 @@ func NewBoardFromString(s string) (*Board, error) {
 	return b, nil
 }
 
-// Clone creates and returns a deep copy of the board.
-// The returned board is independent of the original.
+// Clone creates an independent copy of the Board.
 func (b *Board) Clone() *Board {
 	if b == nil {
 		return nil
@@ -103,9 +75,8 @@ func (b *Board) Clone() *Board {
 	return &clone
 }
 
-// Set places a value (1-9) at the given position.
-// Returns an error if the move is invalid or violates Sudoku rules.
-// Use board.Set(pos, EmptyCell) to clear a cell.
+// Set attempts to place a value 1-9 at the given position.
+// Returns an error if the placement violates Sudoku rules or parameters are invalid.
 func (b *Board) Set(pos, val int) error {
 	if err := b.validatePosition(pos); err != nil {
 		return err
@@ -123,7 +94,7 @@ func (b *Board) Set(pos, val int) error {
 	row, col, box := posToRow[pos], posToCol[pos], posToBox[pos]
 	mask := uint(1 << (val - 1))
 
-	// Check if value already exists in row, column, or box
+	// Check if value already exists in row, column, or box for Sudoku rules
 	if b.rowMasks[row]&mask != 0 {
 		return fmt.Errorf("%w: value %d already in row %d", ErrIllegalMove, val, row)
 	}
@@ -134,14 +105,12 @@ func (b *Board) Set(pos, val int) error {
 		return fmt.Errorf("%w: value %d already in box %d", ErrIllegalMove, val, box)
 	}
 
-	// Set the value only once we know it's legal
+	// Modify the board only once we know it's legal to do so
 	b.cells[pos] = val
-	b.emptyCount--
-
-	// Update candidates of affected cells
 	b.rowMasks[row] |= mask
 	b.colMasks[col] |= mask
 	b.boxMasks[box] |= mask
+	b.emptyCount--
 
 	return nil
 }
@@ -159,22 +128,39 @@ func (b *Board) SetForce(pos, val int) {
 	b.emptyCount--
 }
 
+// Clear removes the value at the given position.
+// Returns an error if the position is invalid.
+// No harm is done calling Clear on an already empty cell.
+func (b *Board) Clear(pos int) error {
+	if err := b.validatePosition(pos); err != nil {
+		return err
+	}
+
+	// Exit early if the cell is already empty, no harm no foul
+	val := b.cells[pos]
+	if val == EmptyCell {
+		return nil
+	}
+
+	row, col, box := posToRow[pos], posToCol[pos], posToBox[pos]
+	mask := uint(1 << (val - 1))
+
+	b.cells[pos] = EmptyCell
+	b.rowMasks[row] &^= mask
+	b.colMasks[col] &^= mask
+	b.boxMasks[box] &^= mask
+	b.emptyCount++
+
+	return nil
+}
+
 // Get returns the value at the given position.
-// Returns EmptyCell for empty cells or InvalidCell for invalid positions.
+// Returns InvalidCell for invalid positions.
 func (b *Board) Get(pos int) int {
 	if !isValidPosition(pos) {
 		return InvalidCell
 	}
 	return b.cells[pos]
-}
-
-// GetCell returns the value at the given row and column.
-// Returns EmptyCell for empty cells or InvalidCell for invalid positions.
-func (b *Board) GetCell(row, col int) int {
-	if row < 0 || row >= 9 || col < 0 || col >= 9 {
-		return InvalidCell
-	}
-	return b.cells[row*9+col]
 }
 
 // GetCandidatesMask returns the bitmask of candidates for a given position.
@@ -184,10 +170,10 @@ func (b *Board) GetCandidatesMask(pos int) uint {
 		return 0
 	}
 	row, col, box := posToRow[pos], posToCol[pos], posToBox[pos]
-	return AllNine &^ b.rowMasks[row] &^ b.colMasks[col] &^ b.boxMasks[box]
+	return allNine &^ b.rowMasks[row] &^ b.colMasks[col] &^ b.boxMasks[box]
 }
 
-// GetCandidates returns a slice of candidates for a given position.
+// GetCandidates returns a slice of candidates 1-9 for a given position.
 // An empty slice indicates an unsolvable board or an invalid position.
 func (b *Board) GetCandidates(pos int) []int {
 	mask := b.GetCandidatesMask(pos)
@@ -200,56 +186,14 @@ func (b *Board) GetCandidates(pos int) []int {
 	return candidates
 }
 
-// GetCandidatesMaskCell returns the bitmask of candidates at the given row and column.
-// A returned 0 indicates an unsolvable board or an invalid position.
-func (b *Board) GetCandidatesMaskCell(row, col int) uint {
-	if row < 0 || row >= 9 || col < 0 || col >= 9 {
-		return 0
-	}
-	return b.GetCandidatesMask(row*9 + col)
-}
-
-// GetCandidatesCell returns a slice of candidates for the given row and column.
-// An empty slice indicates an unsolvable board or an invalid position.
-func (b *Board) GetCandidatesCell(row, col int) []int {
-	if row < 0 || row >= 9 || col < 0 || col >= 9 {
-		return []int{}
-	}
-	return b.GetCandidates(row*9 + col)
-}
-
-// Clear removes the value at the given position.
-// Returns an error if the position is invalid.
-// No harm is done calling Clear on an already empty cell.
-func (b *Board) Clear(pos int) error {
-	if err := b.validatePosition(pos); err != nil {
-		return err
-	}
-
-	// Check if the cell is already empty
-	val := b.cells[pos]
-	if val == EmptyCell {
-		return nil
-	}
-
-	row, col, box := posToRow[pos], posToCol[pos], posToBox[pos]
-	mask := uint(1 << (val - 1))
-
-	// Clear the cell
-	b.cells[pos] = EmptyCell
-	b.emptyCount++
-
-	// Update the candidates of affected cells
-	b.rowMasks[row] &^= mask
-	b.colMasks[col] &^= mask
-	b.boxMasks[box] &^= mask
-
-	return nil
-}
-
 // EmptyCount returns the number of empty cells on the board.
 func (b *Board) EmptyCount() int {
 	return b.emptyCount
+}
+
+// ClueCount returns the number of filled cells on the board.
+func (b *Board) ClueCount() int {
+	return CellCount - b.emptyCount
 }
 
 // String returns the board as an 81-character string.
@@ -265,6 +209,7 @@ func (b *Board) String() string {
 			sb.WriteByte('0' + byte(cell))
 		}
 	}
+
 	return sb.String()
 }
 
@@ -277,7 +222,7 @@ func (b *Board) Format() string {
 	for row := 0; row < 9; row++ {
 		sb.WriteString("| ")
 		for col := 0; col < 9; col++ {
-			val := b.GetCell(row, col)
+			val := b.Get(MakePos(row, col))
 			if val == EmptyCell {
 				sb.WriteByte('.')
 			} else {
@@ -299,57 +244,28 @@ func (b *Board) Format() string {
 	return sb.String()
 }
 
-// IsValid reports whether a board satisfies Sudoku constraints.
-// Empty cells are ignored for validation.
-func (b *Board) IsValid() bool {
-	var rowCheck, colCheck, boxCheck [9]uint
+// Precomputed lookup tables for position mapping
+var (
+	posToRow [CellCount]int
+	posToCol [CellCount]int
+	posToBox [CellCount]int
+)
 
+// MakePos transforms a row and column into a linear position.
+// Returns InvalidCell if row and/or col are invalid.
+func MakePos(row, col int) int {
+	if row < 0 || row >= 9 || col < 0 || col >= 9 {
+		return InvalidCell
+	}
+	return 9*row + col
+}
+
+// init initializes lookup tables for position-to-unit mappings.
+// Should be called once at program start.
+func init() {
 	for pos := 0; pos < CellCount; pos++ {
-		val := b.Get(pos)
-		if val == EmptyCell {
-			continue
-		}
-
-		row, col, box := posToRow[pos], posToCol[pos], posToBox[pos]
-		mask := uint(1 << (val - 1))
-
-		// Check for duplicates
-		if rowCheck[row]&mask != 0 ||
-			colCheck[col]&mask != 0 ||
-			boxCheck[box]&mask != 0 {
-			return false
-		}
-
-		rowCheck[row] |= mask
-		colCheck[col] |= mask
-		boxCheck[box] |= mask
+		posToRow[pos] = int(pos / 9)
+		posToCol[pos] = int(pos % 9)
+		posToBox[pos] = 3*int(pos/27) + int((pos%9)/3)
 	}
-
-	return true
-}
-
-// isValidPosition reports whether a given position is in bounds of a Sudoku board.
-func isValidPosition(pos int) bool {
-	return pos >= 0 && pos < CellCount
-}
-
-// validatePosition checks if a position is within board bounds.
-func (b *Board) validatePosition(pos int) error {
-	if !isValidPosition(pos) {
-		return fmt.Errorf("%w: position %d must be in range [0, %d)", ErrInvalidPosition, pos, CellCount)
-	}
-	return nil
-}
-
-// isValidValue reports whether a given number is valid on a Sudoku board.
-func isValidValue(num int) bool {
-	return (num >= 1 && num <= 9) || num == EmptyCell
-}
-
-// validateValue checks if a value is valid for Sudoku (1-9).
-func (b *Board) validateValue(val int) error {
-	if !isValidValue(val) {
-		return fmt.Errorf("%w: got %d", ErrInvalidValue, val)
-	}
-	return nil
 }

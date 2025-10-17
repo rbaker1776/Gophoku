@@ -175,8 +175,8 @@ func (s *Solver) findHiddenSinglesInRow(row int) bool {
 	valuePossibilities := make([][]int, 10)
 
 	for col := 0; col < 9; col++ {
-		if s.Board.GetCell(row, col) == board.EmptyCell {
-			candidates := s.Board.GetCandidatesCell(row, col)
+		if s.Board.Get(board.MakePos(row, col)) == board.EmptyCell {
+			candidates := s.Board.GetCandidates(board.MakePos(row, col))
 			for _, val := range candidates {
 				valuePossibilities[val] = append(valuePossibilities[val], row*9+col)
 			}
@@ -203,8 +203,8 @@ func (s *Solver) findHiddenSinglesInCol(col int) bool {
 	valuePossibilities := make([][]int, 10)
 
 	for row := 0; row < 9; row++ {
-		if s.Board.GetCell(row, col) == board.EmptyCell {
-			candidates := s.Board.GetCandidatesCell(row, col)
+		if s.Board.Get(board.MakePos(row, col)) == board.EmptyCell {
+			candidates := s.Board.GetCandidates(board.MakePos(row, col))
 			for _, val := range candidates {
 				valuePossibilities[val] = append(valuePossibilities[val], row*9+col)
 			}
@@ -234,8 +234,8 @@ func (s *Solver) findHiddenSinglesInBox(box int) bool {
 
 	for dr := 0; dr < 3; dr++ {
 		for dc := 0; dc < 3; dc++ {
-			if s.Board.GetCell(startRow+dr, startCol+dc) == board.EmptyCell {
-				candidates := s.Board.GetCandidatesCell(startRow+dr, startCol+dc)
+			if s.Board.Get(board.MakePos(startRow+dr, startCol+dc)) == board.EmptyCell {
+				candidates := s.Board.GetCandidates(board.MakePos(startRow+dr, startCol+dc))
 				for _, val := range candidates {
 					valuePossibilities[val] = append(valuePossibilities[val], (startRow+dr)*9+startCol+dc)
 				}
