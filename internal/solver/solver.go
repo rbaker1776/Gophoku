@@ -17,30 +17,6 @@ var (
 	ErrTimeout           = errors.New("solver timeout exceeded")
 )
 
-// Options configures the solver behavior.
-type Options struct {
-	MaxSolutions int             // MaxSolutions limits solution search (0 = unlimited)
-	Timeout      time.Duration   // Timeout limits solving time
-	Randomize    bool            // Randomize solution selection for puzzle generation
-	Context      context.Context // Context for cancellation
-}
-
-// DefaultOptions returns standard solver options.
-func DefaultOptions() *Options {
-	return &Options{
-		MaxSolutions: 1,
-		Randomize:    false,
-	}
-}
-
-// GenerateOptions returns solver options useful for puzzle generation.
-func GenerateOptions() *Options {
-	return &Options{
-		MaxSolutions: 1,
-		Randomize:    true,
-	}
-}
-
 // Solver implements algorithms for solving Sudoku puzzles.
 type Solver struct {
 	Board   *board.Board
@@ -69,7 +45,6 @@ func New(b *board.Board, options *Options) *Solver {
 // Solve attempts to solve the puzzle.
 // Returns the solved board or an error if unsolvable.
 func (s *Solver) Solve() (*board.Board, error) {
-	// Validate initial board state
 	if !s.Board.IsValid() {
 		return nil, ErrInvalidPuzzle
 	}
@@ -79,18 +54,17 @@ func (s *Solver) Solve() (*board.Board, error) {
 		s.fillThreeBoxes()
 	}
 
-	// Try constraint propagation first
+	// Constraint propagation is faster, try this first
 	if err := s.PropagateConstraints(); err != nil {
 		return nil, err
 	}
-
-	// Check if we've solved it
 	if s.Board.EmptyCount() == 0 {
 		return s.Board, nil
 	}
 
 	// Start backtracking with MRV heuristic
-	// MRV = Minimum Remaining Values; guess on the most constrained cells first
+	// MRV = Minimum Remaining Values, guess on the most constrained cells first
+	// to reduce total search space
 	ctx, cancel := s.makeContext()
 	defer cancel()
 
@@ -355,18 +329,4 @@ func (s *Solver) fillThreeBoxes() {
 			s.Board.SetForce(pos, val)
 		}
 	}
-}
-
-// makeContext creates a context with timeout if specified.
-func (s *Solver) makeContext() (context.Context, context.CancelFunc) {
-	ctx := s.options.Context
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if s.options.Timeout > 0 {
-		return context.WithTimeout(ctx, s.options.Timeout)
-	}
-
-	return context.WithCancel(ctx)
 }
