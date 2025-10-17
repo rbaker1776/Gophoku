@@ -2,9 +2,9 @@ package generator
 
 import (
 	"errors"
-	"math/rand"
 	"github.com/rybkr/sudoku/internal/board"
 	"github.com/rybkr/sudoku/internal/solver"
+	"math/rand"
 	"time"
 )
 

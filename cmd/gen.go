@@ -3,8 +3,8 @@ package cmd
 import (
 	"fmt"
 	"github.com/rybkr/sudoku/internal/generator"
-	"time"
 	"github.com/spf13/cobra"
+	"time"
 )
 
 var (
