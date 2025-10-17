@@ -3,8 +3,8 @@ package generator
 import (
 	"errors"
 	"math/rand"
-	"sudoku/internal/board"
-	"sudoku/internal/solver"
+	"github.com/rybkr/sudoku/internal/board"
+	"github.com/rybkr/sudoku/internal/solver"
 	"time"
 )
 

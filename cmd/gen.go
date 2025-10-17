@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"sudoku/internal/generator"
+	"github.com/rybkr/sudoku/internal/generator"
 	"time"
 	"github.com/spf13/cobra"
 )

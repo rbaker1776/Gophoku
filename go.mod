@@ -1,4 +1,4 @@
-module sudoku
+module github.com/rybkr/sudoku
 
 go 1.25.1
 

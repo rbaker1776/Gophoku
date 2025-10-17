@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"time"
 
-	"sudoku/internal/board"
+	"github.com/rybkr/sudoku/internal/board"
 )
 
 var (

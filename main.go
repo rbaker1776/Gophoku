@@ -1,6 +1,6 @@
 package main
 
-import "sudoku/cmd"
+import "github.com/rybkr/sudoku/cmd"
 
 func main() {
     cmd.Execute()
