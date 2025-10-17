@@ -3,9 +3,9 @@ package generator
 import (
 	"errors"
 	"math/rand"
-	"time"
 	"sudoku/internal/board"
 	"sudoku/internal/solver"
+	"time"
 )
 
 const (
@@ -19,29 +19,6 @@ var (
 	ErrInvalidClueCount = errors.New("clue count must be between 17 and 80")
 	ErrDiggingFailed    = errors.New("failed to remove proper number of clues")
 )
-
-// Options configures puzzle generation behavior.
-type Options struct {
-	ClueCount    int           // Number of clues to add to the puzzle
-	Tolerance    int           // Tolerance allows clues within +/- tolerance of ClueCount
-	Timeout      time.Duration // Timeout limits generation time
-	Seed         int64         // Seed for reproducible puzzles (0 = random)
-	EnsureUnique bool          // EnsureUnique verifies single solution
-	MaxAttempts  int           // MaxAttempts limits generation retries
-}
-
-// DefaultOptions returns standard generator options.
-func DefaultOptions(clueCount int) *Options {
-	clueCount = min(max(clueCount, MinValidClueCount), MaxValidClueCount)
-	return &Options{
-		ClueCount:    clueCount,
-		Tolerance:    0,
-		Timeout:      30 * time.Second,
-		Seed:         0,
-		MaxAttempts:  100,
-		EnsureUnique: true,
-	}
-}
 
 // Generator creates Sudoku puzzles.
 type Generator struct {
@@ -73,7 +50,14 @@ func (g *Generator) Generate() (puzzle *board.Board, solution *board.Board, err 
 		return nil, nil, ErrInvalidClueCount
 	}
 
-	for attempt := 0; attempt < g.options.MaxAttempts; attempt++ {
+	start := time.Now()
+	timeout := g.options.Timeout
+
+	for {
+		if time.Since(start) >= timeout {
+			return nil, nil, ErrGenerationFailed
+		}
+
 		// Generate a complete valid board
 		solution, err = g.generateSolution()
 		if err != nil {
